@@ -170,8 +170,6 @@ def main():
         row("Agent left flagged", f"{fa}/{len(lines)}")
         row("Repaired by the loop", f"{fb - fa}/{fb}  (folded last row recovered from a zoom crop; day/month swap corrected)")
     hr()
-    print("  Trained by us: none of the three networks. Built by us: preprocessing, verifier, loop, cross-check, evaluation.")
-    hr()
 
 
 if __name__ == "__main__":

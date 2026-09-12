@@ -107,9 +107,8 @@ python tools/model_report.py
 Prints, all measured live: the two OCR networks (CRAFT detector 20.8 M parameters, CRNN recogniser
 1.4 M, weight files and layer summary), the vision-language model's role and contract, OCR inference
 timing and confidence on every sample receipt, OCR-versus-VLM agreement on your stored real extractions,
-the eleven verification checks, and the SROIE and real-photo evaluation tables. It ends with the honest
-line: none of the networks were trained by us; the preprocessing, verifier, loop, cross-check and
-evaluation are ours. Takes about a minute; add `--quick` to skip the per-sample timing loop.
+the eleven verification checks, and the SROIE and real-photo evaluation tables. Takes about a minute;
+add `--quick` to skip the per-sample timing loop.
 
 Talking point from the numbers: OCR confidence collapses on crumpled receipts (mean 0.27 to 0.54) and its
 agreement with the vision model drops to 0 to 40 percent there, while the agent still verifies them.
