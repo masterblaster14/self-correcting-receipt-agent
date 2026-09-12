@@ -10,13 +10,34 @@ import base64
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from .models import ProcessResult
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parents[2] / "data"))
+DISPLAY_TZ = ZoneInfo(os.environ.get("DISPLAY_TZ", "Asia/Kolkata"))   # for PDFs, Excel, messages
+
+
+def now_iso() -> str:
+    """Timezone-aware UTC timestamp, e.g. 2026-09-12T06:28:11+00:00. Servers run in UTC (Railway),
+    laptops in local time; storing an offset makes the value unambiguous everywhere."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def fmt_local(iso: Optional[str], fmt: str = "%d %b %Y, %H:%M") -> str:
+    """Render a stored timestamp in DISPLAY_TZ. Naive legacy values are treated as UTC."""
+    if not iso:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso)
+    except ValueError:
+        return iso
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(DISPLAY_TZ).strftime(fmt) + f" {DISPLAY_TZ.key.split('/')[-1] if DISPLAY_TZ.key != 'Asia/Kolkata' else 'IST'}"
 RECEIPTS_DIR = DATA_DIR / "receipts"
 DB_PATH = DATA_DIR / "expenses.db"
 
@@ -41,7 +62,20 @@ def _conn() -> sqlite3.Connection:
             id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT, department TEXT)"""
     )
     c.execute("CREATE TABLE IF NOT EXISTS org (key TEXT PRIMARY KEY, value TEXT)")
+    _migrate_naive_timestamps(c)
     return c
+
+
+def _migrate_naive_timestamps(c: sqlite3.Connection) -> None:
+    """One-time: rows written before timestamps carried an offset were in the *machine's* local time
+    (UTC on the server, IST on a laptop). Convert them to aware UTC so ordering and display are exact."""
+    rows = c.execute("SELECT id, created_at FROM receipts WHERE created_at NOT LIKE '%+%' AND created_at NOT LIKE '%Z'").fetchall()
+    for r in rows:
+        try:
+            dt = datetime.fromisoformat(r["created_at"]).astimezone(timezone.utc)  # naive -> system local tz
+            c.execute("UPDATE receipts SET created_at=? WHERE id=?", (dt.isoformat(timespec="seconds"), r["id"]))
+        except ValueError:
+            continue
 
 
 def save(res: ProcessResult, original_jpeg: bytes, pdf: bytes) -> None:
@@ -57,7 +91,7 @@ def save(res: ProcessResult, original_jpeg: bytes, pdf: bytes) -> None:
             "self_correct, model, result_json, image_path, pdf_path, submitted_by, department, image_hash) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
-                res.id, datetime.now().isoformat(timespec="seconds"), res.profile.vendor_name, res.profile.date,
+                res.id, now_iso(), res.profile.vendor_name, res.profile.date,
                 res.profile.total, res.profile.currency, res.category, res.state.value, res.iterations,
                 int(res.self_correction_enabled), res.model, slim.model_dump_json(), str(img_path), str(pdf_path),
                 res.submitted_by, res.department, res.image_hash,

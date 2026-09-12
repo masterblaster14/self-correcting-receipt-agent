@@ -121,9 +121,9 @@ def check_duplicate(profile: ExpenseProfile, image_hash: str = "") -> DuplicateR
     """Deterministic duplicate-submission checks against the ledger:
     (1) same vendor + date + total already reimbursed, (2) a near-identical receipt *image* already stored,
     found by perceptual hash, which catches the same photo re-cropped, re-shot or brightness-adjusted."""
-    try:
-        from . import storage
+    from . import storage
 
+    try:
         hit = storage.find_similar(profile.vendor_name, profile.date, profile.total)
         hashes = storage.all_image_hashes() if image_hash else []
     except Exception:
@@ -131,7 +131,7 @@ def check_duplicate(profile: ExpenseProfile, image_hash: str = "") -> DuplicateR
     res = DuplicateResult()
     if hit:
         res.is_duplicate, res.matched_id = True, hit["id"]
-        res.detail = f"Same vendor, date and total as receipt {hit['id']} submitted {hit['created_at'][:16]}."
+        res.detail = f"Same vendor, date and total as receipt {hit['id']} submitted {storage.fmt_local(hit['created_at'])}."
     best = None
     for h in hashes:
         d = hamming(image_hash, h["image_hash"])
@@ -142,7 +142,7 @@ def check_duplicate(profile: ExpenseProfile, image_hash: str = "") -> DuplicateR
         res.similar_image, res.similar_image_id, res.hamming = True, h["id"], d
         res.detail = (res.detail + " " if res.detail else "") + (
             f"Image is near-identical to receipt {h['id']} ({h['vendor'] or 'unknown vendor'}, "
-            f"{h['currency']} {h['total']}) submitted {h['created_at'][:16]} — {d}/256 bits differ.")
+            f"{h['currency']} {h['total']}) submitted {storage.fmt_local(h['created_at'])} — {d}/256 bits differ.")
     if not res.is_duplicate and not res.similar_image:
         res.detail = "No matching receipt or similar image in the ledger."
     return res

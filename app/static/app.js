@@ -5,6 +5,12 @@
   const SYM = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
   const money = (x, cur = "INR") => x == null ? "—" : `${SYM[cur] ?? cur + " "}${Number(x).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const STAGES = ["upload", "preprocess", "ocr", "extract", "verify", "correct", "categorize", "policy", "report"];
+  // stored timestamps are UTC with an offset; older rows are naive UTC. Show them in the viewer's local time.
+  const when = (iso) => {
+    if (!iso) return "—";
+    const d = new Date(/[+-]\d\d:\d\d$|Z$/.test(iso) ? iso : iso + "Z");
+    return isNaN(d) ? iso : d.toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
+  };
   const STAGE_ALIAS = { store: "report", done: "report" };
 
   let current = null;        // last ProcessResult
@@ -335,7 +341,7 @@
     if (!items.length) { t.innerHTML = `<tbody><tr><td class="empty">No receipts yet — scan one.</td></tr></tbody>`; return; }
     t.innerHTML = `<thead><tr><th>When</th><th>Vendor</th><th>Date</th><th class="num">Total</th><th>Category</th><th>Employee</th><th>Status</th><th class="num">Passes</th><th>Files</th><th></th></tr></thead><tbody>${
       items.map((r) => `<tr data-id="${r.id}">
-        <td class="mono">${esc(r.created_at.replace("T", " ").slice(0, 16))}</td><td>${esc(r.vendor || "—")}</td><td class="mono">${esc(r.date || "—")}</td>
+        <td class="mono" title="${esc(r.created_at)}">${esc(when(r.created_at))}</td><td>${esc(r.vendor || "—")}</td><td class="mono">${esc(r.date || "—")}</td>
         <td class="num">${money(r.total, r.currency)}</td><td>${esc(r.category)}</td>
         <td>${esc(r.submitted_by || "—")}${r.department ? `<br><small style="color:var(--muted)">${esc(r.department)}</small>` : ""}</td>
         <td><span class="chip ${r.state === "VERIFIED" ? "ok" : "warn"}">${r.state === "VERIFIED" ? "verified" : "review"}</span>${r.self_correct ? "" : ' <span class="chip bad">baseline</span>'}</td>

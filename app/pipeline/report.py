@@ -16,6 +16,7 @@ from reportlab.platypus import (
 )
 
 from .models import ProcessResult, ReceiptState
+from .storage import DISPLAY_TZ
 
 # Helvetica has no rupee glyph; use Arial on Windows / DejaVu on Linux when available.
 _FONT = "Helvetica"
@@ -57,7 +58,7 @@ def build_pdf(res: ProcessResult, original_jpeg: bytes | None = None) -> bytes:
 
     story = [
         Paragraph("Expense Report", h1),
-        Paragraph(f"Generated {datetime.now():%d %b %Y, %H:%M} · Receipt ID {res.id} · Model {res.model}", sub),
+        Paragraph(f"Generated {datetime.now(DISPLAY_TZ):%d %b %Y, %H:%M} {'IST' if DISPLAY_TZ.key == 'Asia/Kolkata' else DISPLAY_TZ.key} · Receipt ID {res.id} · Model {res.model}", sub),
         Spacer(1, 6),
     ]
 

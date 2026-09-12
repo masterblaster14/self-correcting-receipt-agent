@@ -11,6 +11,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from .models import ProcessResult
+from .storage import DISPLAY_TZ, fmt_local
 
 HEAD_FILL = PatternFill("solid", fgColor="EEF2FF")
 HEAD_FONT = Font(bold=True, color="3730A3")
@@ -58,7 +59,7 @@ def build_receipt_xlsx(res: ProcessResult) -> bytes:
         ("Discount", p.discount), ("Round off", p.round_off), ("TOTAL", p.total),
         ("Self-correction", "enabled" if res.self_correction_enabled else "disabled (baseline)"),
         ("Correction iterations", res.iterations), ("Model", res.model), ("Processing time (s)", round(res.total_ms / 1000, 1)),
-        ("Generated", datetime.now().strftime("%Y-%m-%d %H:%M")),
+        ("Generated", datetime.now(DISPLAY_TZ).strftime("%Y-%m-%d %H:%M ") + ("IST" if DISPLAY_TZ.key == "Asia/Kolkata" else DISPLAY_TZ.key)),
     ]
     _header(ws, 1, ["Field", "Value"])
     for i, (k, v) in enumerate(rows, 2):
@@ -138,7 +139,7 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
         p = res["profile"]
         tax = sum((t.get("amount") or 0) for t in p.get("taxes", []))
         charges = sum((c.get("amount") or 0) for c in p.get("other_charges", []))
-        ws.append([r["created_at"].replace("T", " "), r["id"], p.get("vendor_name"), p.get("date"), p.get("invoice_number"),
+        ws.append([fmt_local(r["created_at"]), r["id"], p.get("vendor_name"), p.get("date"), p.get("invoice_number"),
                    res.get("category"), p.get("currency"), p.get("subtotal"), tax, charges, p.get("discount"), p.get("total"),
                    res.get("state"), (res.get("policy") or {}).get("status"),
                    "yes" if ((res.get("duplicate") or {}).get("is_duplicate") or (res.get("duplicate") or {}).get("similar_image")) else "no",
