@@ -64,7 +64,13 @@ with the loop disabled is the baseline.
 | other 6 | VERIFIED first pass | VERIFIED first pass, no extra calls |
 
 **ICDAR-2019 SROIE, 30 random receipts (seed 0), key-field accuracy.** `results/sroie_results.csv`, log in
-`results/sroie_eval_log.txt`. Run with `python tools/eval_sroie.py <sroie-root> --n 30`.
+`results/sroie_eval_log.txt`. Run with `python tools/eval_sroie.py datasets/sroie --n 30`.
+
+The dataset itself (626 scanned receipts, 340 MB, with per-line boxes and company/date/address/total
+ground truth) is not committed. Get it with
+`git clone --depth 1 https://github.com/zzzDavid/ICDAR-2019-SROIE` and move its `data` folder to
+`datasets/sroie`. `python tools/show_sroie.py` prints the dataset statistics and opens an annotated
+contact sheet; `--id 146` shows one receipt full size with its boxes and ground truth.
 
 | Metric | Single-pass baseline | Self-correcting agent |
 |---|---|---|

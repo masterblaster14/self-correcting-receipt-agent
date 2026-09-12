@@ -114,6 +114,17 @@ Talking point from the numbers: OCR confidence collapses on crumpled receipts (m
 agreement with the vision model drops to 0 to 40 percent there, while the agent still verifies them.
 That is the case for a vision-language model plus a verification loop over OCR alone.
 
+## 4c. Showing the dataset
+
+```bash
+python tools/show_sroie.py            # statistics + annotated sheet of 6 random receipts, opens automatically
+python tools/show_sroie.py --id 146   # one receipt full size (the 72.93 vs 72.95 rounding case)
+```
+
+The folder `datasets/sroie` holds all 626 receipts: `img/` scans, `box/` every text line with its
+coordinates and transcription, `key/` the four ground-truth fields. Open a `key/*.json` in a text editor
+if she wants to see the raw labels. The 30 used in the evaluation are listed in `results/sroie_results.csv`.
+
 ## 5. Repository tour (what to open when showing code)
 
 ```
