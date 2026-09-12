@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .pipeline import extract as llm
-from .pipeline import storage
+from .pipeline import mailer, storage
 from .pipeline.agent import run_pipeline
 from .pipeline.preprocess import load_image
 from .pipeline.report import build_pdf
@@ -72,10 +72,12 @@ def index():
 @app.get("/api/health")
 def health():
     return {"ok": True, "mock": llm.MOCK, "model": llm.MODEL, "effort": llm.EFFORT,
-            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip()}
+            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip(),
+            "email_configured": mailer.configured()}
 
 
-def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_fault: bool):
+def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_fault: bool,
+             submitted_by: str = "", department: str = ""):
     def progress(stage: str, msg: str):
         with JOBS_LOCK:
             JOBS[job_id]["events"].append({"stage": stage, "message": msg})
@@ -84,7 +86,7 @@ def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_f
     try:
         res = run_pipeline(data, self_correct=self_correct, max_iterations=max_iter,
                            demo_fault=demo_fault, policy_text=storage.get_policy(llm.DEFAULT_POLICY),
-                           progress=progress)
+                           submitted_by=submitted_by, department=department, progress=progress)
         progress("report", "Generating PDF expense report")
         import base64
 
@@ -107,8 +109,11 @@ async def process(
     self_correct: bool = Form(True),
     max_iterations: int = Form(3),
     demo_fault: bool = Form(False),
+    submitted_by: str = Form(""),
 ):
     data = await file.read()
+    person = storage.get_person(submitted_by) if submitted_by else None
+    department = (person or {}).get("department") or ""
     if not data:
         raise HTTPException(400, "Empty upload")
     try:
@@ -118,8 +123,67 @@ async def process(
     job_id = uuid.uuid4().hex[:10]
     with JOBS_LOCK:
         JOBS[job_id] = {"status": "running", "stage": "upload", "events": [{"stage": "upload", "message": f"Received {file.filename} ({len(data) // 1024} KB)"}]}
-    threading.Thread(target=_run_job, args=(job_id, data, self_correct, max(0, min(max_iterations, 5)), demo_fault), daemon=True).start()
+    threading.Thread(target=_run_job, args=(job_id, data, self_correct, max(0, min(max_iterations, 5)), demo_fault,
+                                            submitted_by.strip(), department), daemon=True).start()
     return {"job_id": job_id}
+
+
+# ---------------------------------------------------------------- organisation + email
+@app.get("/api/org")
+def get_org():
+    return storage.get_org()
+
+
+@app.put("/api/org")
+async def put_org(body: dict):
+    storage.set_org((body.get("org_name") or "").strip(), (body.get("finance_email") or "").strip())
+    return {"ok": True}
+
+
+@app.post("/api/people")
+async def add_person(body: dict):
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Name required")
+    pid = storage.add_person(name, (body.get("email") or "").strip(), (body.get("department") or "").strip(),
+                             (body.get("manager_email") or "").strip())
+    return {"ok": True, "id": pid}
+
+
+@app.delete("/api/people/{pid}")
+def delete_person(pid: int):
+    storage.delete_person(pid)
+    return {"ok": True}
+
+
+@app.post("/api/receipts/{rid}/email")
+async def email_receipt(rid: str, body: Optional[dict] = None):
+    from .pipeline.excel import build_receipt_xlsx
+    from .pipeline.models import ProcessResult
+
+    r = storage.get(rid)
+    if not r:
+        raise HTTPException(404, "Not found")
+    res = ProcessResult.model_validate(r["result"])
+    org = storage.get_org()
+    person = storage.get_person(res.submitted_by) if res.submitted_by else None
+    to = []
+    if body and body.get("to"):
+        to += [t for t in str(body["to"]).replace(";", ",").split(",")]
+    if person and person.get("manager_email"):
+        to.append(person["manager_email"])
+    if org.get("finance_email"):
+        to.append(org["finance_email"])
+    if person and person.get("email") and (body or {}).get("cc_submitter", True):
+        to.append(person["email"])
+    to = list(dict.fromkeys(t.strip() for t in to if t and t.strip()))
+    pdf = storage.pdf_bytes(rid) or b""
+    try:
+        sent_to = mailer.send_report(res, to, pdf, build_receipt_xlsx(res), org.get("org_name", ""))
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    storage.mark_emailed(rid, sent_to)
+    return {"ok": True, "to": sent_to}
 
 
 @app.get("/api/jobs/{job_id}")

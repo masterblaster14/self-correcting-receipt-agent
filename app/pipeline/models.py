@@ -277,6 +277,8 @@ class ProcessResult(BaseModel):
     iterations: int = 0
     max_iterations: int = 3
     self_correction_enabled: bool = True
+    submitted_by: Optional[str] = None      # employee name from the organisation directory
+    department: Optional[str] = None
     model: str = ""
     original_image_b64: str = ""
     processed_image_b64: str = ""

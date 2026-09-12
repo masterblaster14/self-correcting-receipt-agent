@@ -41,8 +41,48 @@
     }));
   }).catch(() => { $("samples").hidden = true; });
 
+  // ---------------------------------------------------------------- camera
+  // Phones: the native file input with capture=environment opens the camera app (works over http).
+  // Desktops: that same input is just a file picker, so use getUserMedia in a modal instead.
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
+  let camStream = null;
+  async function openWebcam() {
+    if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) return false;
+    try {
+      camStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    } catch (e) { return false; }
+    $("camVideo").srcObject = camStream;
+    $("camModal").hidden = false;
+    return true;
+  }
+  function closeWebcam() {
+    $("camModal").hidden = true;
+    camStream?.getTracks().forEach((t) => t.stop());
+    camStream = null;
+  }
+  function shootWebcam() {
+    const v = $("camVideo");
+    if (!v.videoWidth) return;
+    const c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext("2d").drawImage(v, 0, 0);
+    c.toBlob((blob) => { closeWebcam(); startJob(new File([blob], `webcam-${Date.now()}.jpg`, { type: "image/jpeg" })); }, "image/jpeg", 0.92);
+  }
+  $("camShoot").addEventListener("click", shootWebcam);
+  $("camCancel").addEventListener("click", closeWebcam);
+  document.addEventListener("keydown", (e) => {
+    if ($("camModal").hidden) return;
+    if (e.key === "Escape") closeWebcam();
+    if (e.key === " ") { e.preventDefault(); shootWebcam(); }
+  });
+
   // ---------------------------------------------------------------- upload wiring
-  $("btnCamera").addEventListener("click", () => $("fileCamera").click());
+  $("btnCamera").addEventListener("click", async () => {
+    if (isMobile) return $("fileCamera").click();
+    if (await openWebcam()) return;
+    toast("No webcam available here — choose an image file instead", 3500);
+    $("fileUpload").click();
+  });
   $("btnUpload").addEventListener("click", () => $("fileUpload").click());
   ["fileCamera", "fileUpload"].forEach((id) => $(id).addEventListener("change", (e) => {
     const f = e.target.files?.[0];
@@ -77,6 +117,7 @@
     fd.append("self_correct", $("optSelfCorrect").checked);
     fd.append("max_iterations", $("optIters").value);
     fd.append("demo_fault", $("optFault").checked);
+    fd.append("submitted_by", $("optPerson").value || "");
 
     let job;
     try {
@@ -129,7 +170,7 @@
     $("rStatus").textContent = verified ? "VERIFIED" : "FLAGGED FOR REVIEW";
     $("rStatus").classList.toggle("flag", !verified);
     $("rVendor").textContent = p.vendor_name || "Unknown vendor";
-    $("rMeta").textContent = [p.date, p.time, p.vendor_address, `#${res.id}`].filter(Boolean).join(" · ");
+    $("rMeta").textContent = [p.date, p.time, p.vendor_address, res.submitted_by ? `submitted by ${res.submitted_by}${res.department ? " (" + res.department + ")" : ""}` : "", `#${res.id}`].filter(Boolean).join(" · ");
     $("rTotal").textContent = money(p.total, cur);
     $("rChips").innerHTML = [
       `<span class="chip accent">${esc(res.category)}</span>`,
@@ -221,6 +262,21 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // email report
+  $("btnEmail").addEventListener("click", async () => {
+    if (!current) return;
+    const extra = prompt("Send to manager + finance (from the Organisation tab). Add extra recipients, comma-separated, or leave blank:", "");
+    if (extra === null) return;
+    $("btnEmail").disabled = true;
+    try {
+      const r = await fetch(`/api/receipts/${current.id}/email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: extra }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || r.statusText);
+      toast(`Report emailed to ${d.to}`, 5000);
+    } catch (e) { toast("Email failed: " + e.message, 7000); }
+    $("btnEmail").disabled = false;
+  });
+
   // image segment control
   $("imgSeg").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setImg(b.dataset.img)));
   function setImg(mode) {
@@ -239,18 +295,32 @@
 
   // ---------------------------------------------------------------- ledger
   $("btnRefresh").addEventListener("click", loadLedger);
+  $("ledgerFilter").addEventListener("change", loadLedger);
   async function loadLedger() {
-    const { items, stats } = await (await fetch("/api/receipts")).json();
+    const all = await (await fetch("/api/receipts")).json();
+    const stats = all.stats;
+    // filter by employee or department, client-side (ledger is small)
+    const filt = $("ledgerFilter");
+    const opts = new Map();
+    all.items.forEach((r) => { if (r.department) opts.set(`d:${r.department}`, `Dept: ${r.department}`); if (r.submitted_by) opts.set(`p:${r.submitted_by}`, r.submitted_by); });
+    const keep = filt.value;
+    filt.innerHTML = `<option value="">Everyone</option>` + [...opts].map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+    filt.value = [...opts.keys()].includes(keep) ? keep : "";
+    const items = all.items.filter((r) => !filt.value || (filt.value.startsWith("d:") ? r.department === filt.value.slice(2) : r.submitted_by === filt.value.slice(2)));
+    const spend = (stats.by_currency || []).length
+      ? stats.by_currency.map((c) => `<span title="${c.n} receipt(s)">${money(c.total, c.currency)}</span>`).join('<span class="sep"> · </span>')
+      : "—";
     $("stats").innerHTML = [
-      ["Receipts", stats.n], ["Total spend", money(stats.sum_total)], ["Verified", stats.n ? `${Math.round(100 * stats.verified / stats.n)}%` : "—"],
+      ["Receipts", stats.n], ["Total spend by currency", spend], ["Verified", stats.n ? `${Math.round(100 * stats.verified / stats.n)}%` : "—"],
       ["Self-corrected", stats.corrected || 0],
     ].map(([k, v]) => `<div class="stat"><b>${k}</b><span>${v}</span></div>`).join("");
     const t = $("ledgerTable");
     if (!items.length) { t.innerHTML = `<tbody><tr><td class="empty">No receipts yet — scan one.</td></tr></tbody>`; return; }
-    t.innerHTML = `<thead><tr><th>When</th><th>Vendor</th><th>Date</th><th class="num">Total</th><th>Category</th><th>Status</th><th class="num">Passes</th><th>Files</th><th></th></tr></thead><tbody>${
+    t.innerHTML = `<thead><tr><th>When</th><th>Vendor</th><th>Date</th><th class="num">Total</th><th>Category</th><th>Employee</th><th>Status</th><th class="num">Passes</th><th>Files</th><th></th></tr></thead><tbody>${
       items.map((r) => `<tr data-id="${r.id}">
         <td class="mono">${esc(r.created_at.replace("T", " ").slice(0, 16))}</td><td>${esc(r.vendor || "—")}</td><td class="mono">${esc(r.date || "—")}</td>
         <td class="num">${money(r.total, r.currency)}</td><td>${esc(r.category)}</td>
+        <td>${esc(r.submitted_by || "—")}${r.department ? `<br><small style="color:var(--muted)">${esc(r.department)}</small>` : ""}${r.emailed_to ? `<br><small style="color:var(--ok)" title="${esc(r.emailed_to)}">✉ emailed</small>` : ""}</td>
         <td><span class="chip ${r.state === "VERIFIED" ? "ok" : "warn"}">${r.state === "VERIFIED" ? "verified" : "review"}</span>${r.self_correct ? "" : ' <span class="chip bad">baseline</span>'}</td>
         <td class="num">${r.iterations}</td>
         <td style="white-space:nowrap"><a href="/api/receipts/${r.id}/pdf" target="_blank" rel="noopener" class="btn small" onclick="event.stopPropagation()">PDF</a> <a href="/api/receipts/${r.id}/xlsx" download class="btn small" onclick="event.stopPropagation()">XLSX</a></td>
@@ -279,12 +349,46 @@
     $("askBtn").disabled = false;
   });
 
-  // ---------------------------------------------------------------- policy
+  // ---------------------------------------------------------------- organisation + policy
   let defaultPolicy = "";
   async function loadPolicy() {
     const d = await (await fetch("/api/policy")).json();
     $("policyText").value = d.policy; defaultPolicy = d.default; $("policyNote").textContent = "";
+    await loadOrg();
+    const h = await (await fetch("/api/health")).json();
+    $("emailState").textContent = h.email_configured ? "Email sending configured" : "Email not configured — set SMTP_HOST / SMTP_USER / SMTP_PASS in .env";
+    $("emailState").className = "email-state " + (h.email_configured ? "ok" : "bad");
   }
+  async function loadOrg() {
+    const o = await (await fetch("/api/org")).json();
+    $("orgName").value = o.org_name || ""; $("orgFinance").value = o.finance_email || "";
+    const t = $("peopleTable");
+    t.innerHTML = o.people.length
+      ? `<thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Manager email</th><th></th></tr></thead><tbody>${
+          o.people.map((p) => `<tr><td>${esc(p.name)}</td><td>${esc(p.email || "—")}</td><td>${esc(p.department || "—")}</td><td>${esc(p.manager_email || "—")}</td><td><button class="del" data-pid="${p.id}" title="Remove">✕</button></td></tr>`).join("")}</tbody>`
+      : `<tbody><tr><td class="empty">No people yet — add your team above.</td></tr></tbody>`;
+    t.querySelectorAll("[data-pid]").forEach((b) => b.addEventListener("click", async () => { await fetch(`/api/people/${b.dataset.pid}`, { method: "DELETE" }); loadOrg(); }));
+    fillPeopleSelect(o.people);
+  }
+  function fillPeopleSelect(people) {
+    const sel = $("optPerson");
+    let saved = "";
+    try { saved = localStorage.getItem("submitting_as") || ""; } catch {}
+    sel.innerHTML = `<option value="">— not set —</option>` + people.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}${p.department ? ` · ${esc(p.department)}` : ""}</option>`).join("");
+    sel.value = people.some((p) => p.name === saved) ? saved : "";
+  }
+  $("optPerson").addEventListener("change", () => { try { localStorage.setItem("submitting_as", $("optPerson").value); } catch {} });
+  fetch("/api/org").then((r) => r.json()).then((o) => fillPeopleSelect(o.people)).catch(() => {});
+  $("btnSaveOrg").addEventListener("click", async () => {
+    const r = await fetch("/api/org", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ org_name: $("orgName").value, finance_email: $("orgFinance").value }) });
+    $("orgNote").textContent = r.ok ? "Saved." : "Save failed";
+  });
+  $("peopleForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const body = { name: $("pName").value, email: $("pEmail").value, department: $("pDept").value, manager_email: $("pManager").value };
+    const r = await fetch("/api/people", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.ok) { $("peopleForm").reset(); loadOrg(); } else toast("Could not add person");
+  });
   $("btnSavePolicy").addEventListener("click", async () => {
     const r = await fetch("/api/policy", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ policy: $("policyText").value }) });
     $("policyNote").textContent = r.ok ? "Saved — applies to the next scan." : "Save failed";

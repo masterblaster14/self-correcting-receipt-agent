@@ -95,6 +95,37 @@ correction pass runs.
 | 10 PDF report | `app/pipeline/report.py` (reportlab); Excel per receipt + whole-ledger export in `app/pipeline/excel.py` (openpyxl) |
 | 11 Output | Result screen, Ledger tab, PDF download, natural-language ledger queries |
 
+## Deploying to Railway (public HTTPS URL, works from any phone)
+
+The repo already contains `Procfile`, `railway.json` and `runtime.txt`; OpenCV is the headless build so no
+system packages are needed.
+
+```bash
+npm i -g @railway/cli            # once
+railway login
+railway init                     # create a project (or `railway link` to an existing one)
+railway variables --set ANTHROPIC_API_KEY=sk-ant-... --set MODEL=claude-opus-5 --set EFFORT=medium
+railway up                       # build + deploy from this folder
+railway domain                   # generate the public https URL
+```
+
+Optional but recommended: persistent storage, otherwise the ledger resets on every redeploy.
+
+```bash
+railway volume add --mount-path /data
+railway variables --set DATA_DIR=/data
+```
+
+Optional email: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` the same way.
+On Railway the phone camera works through the normal HTTPS page, no hotspot needed.
+
+## Organisation, people and email
+
+The **Organisation** tab holds the organisation name, a finance mailbox, the people directory
+(name, email, department, manager email) and the expense policy. Choose a person under **Submitting as**
+on the Scan page; the receipt is stored against them and their department, the Ledger can be filtered by
+either, and **Email report** sends the PDF and Excel to their manager, to finance and to them.
+
 ## Configuration (`.env`)
 
 | Variable | Default | Meaning |
@@ -103,6 +134,8 @@ correction pass runs.
 | `MODEL` | `claude-opus-5` | vision model; `claude-sonnet-5` is cheaper for bulk testing |
 | `EFFORT` | `medium` | `low` / `medium` / `high` reasoning effort per call |
 | `MOCK_LLM` | `0` | `1` = canned responses, no API calls |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | — | enable **Email report** (Gmail: use an App Password) |
+| `DATA_DIR` | `./data` | where SQLite, receipt images and PDFs are stored (Railway volume: `/data`) |
 
 ## Project layout
 

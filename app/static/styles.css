@@ -238,6 +238,8 @@ details.prompt pre { white-space: pre-wrap; font-family: var(--mono); font-size:
 .stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
 .stat b { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .stat span { font-family: var(--mono); font-weight: 600; font-size: 24px; letter-spacing: -.02em; }
+.stat span span { font-size: 20px; white-space: nowrap; }
+.stat .sep { color: var(--line-2); font-weight: 400; }
 .ask { margin-bottom: 18px; }
 .ask-form { display: flex; gap: 8px; }
 .ask-form input { flex: 1; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--line-2); background: #fff; min-width: 0; }
@@ -254,6 +256,26 @@ details.prompt pre { white-space: pre-wrap; font-family: var(--mono); font-size:
 textarea#policyText { width: 100%; margin-top: 10px; padding: 14px; border-radius: 12px; border: 1px solid var(--line-2); font-family: var(--mono); font-size: 13px; line-height: 1.5; resize: vertical; background: #fff; }
 .row-actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
 .save-note { color: var(--ok); font-size: 13px; font-weight: 600; }
+
+/* ------------------------------------------------------------ organisation */
+.org-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.org-grid label, .people-form input { font-size: 13px; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.org-grid input, .people-form input, .small-select { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: #fff; font-weight: 400; color: var(--ink); font-size: 14px; }
+.org-grid input:focus, .people-form input:focus { outline: 2px solid #c7d2fe; border-color: var(--accent); }
+.people-form { display: grid; grid-template-columns: 1.2fr 1.4fr 1fr 1.4fr auto; gap: 8px; margin: 12px 0; }
+.people .del { border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.people .del:hover { color: var(--bad); background: var(--bad-soft); }
+.small-select { padding: 6px 10px; font-size: 13px; border-radius: 9px; }
+.email-state { font-size: 12.5px; color: var(--muted); }
+.email-state.ok { color: var(--ok); font-weight: 600; }
+.email-state.bad { color: var(--warn); font-weight: 600; }
+
+/* ------------------------------------------------------------ webcam capture */
+.cam { position: fixed; inset: 0; background: rgba(15,23,42,.9); display: grid; place-items: center; z-index: 55; padding: 16px; }
+.cam-box { width: min(900px, 96vw); background: #0f172a; border-radius: 16px; padding: 12px; box-shadow: 0 30px 80px -20px rgba(0,0,0,.7); }
+.cam-box video { width: 100%; max-height: 70vh; border-radius: 10px; background: #000; display: block; object-fit: contain; }
+.cam-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.cam-hint { color: #94a3b8; font-size: 12.5px; margin-top: 8px; text-align: center; }
 
 /* ------------------------------------------------------------ misc */
 .lightbox { position: fixed; inset: 0; background: rgba(15,23,42,.85); display: grid; place-items: center; z-index: 50; cursor: zoom-out; padding: 20px; }
@@ -277,6 +299,7 @@ textarea#policyText { width: 100%; margin-top: 10px; padding: 14px; border-radiu
   .dropzone { padding: 26px 16px 22px; }
   .dz-actions .btn { flex: 1; justify-content: center; }
   .card { padding: 14px; }
-  .rh-actions { width: 100%; }
+  .rh-actions { width: 100%; flex-wrap: wrap; }
   .rh-actions .btn { flex: 1; justify-content: center; }
+  .org-grid, .people-form { grid-template-columns: 1fr; }
 }

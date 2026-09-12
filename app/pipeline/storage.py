@@ -32,6 +32,16 @@ def _conn() -> sqlite3.Connection:
             category TEXT, state TEXT, iterations INTEGER, self_correct INTEGER, model TEXT,
             result_json TEXT, image_path TEXT, pdf_path TEXT)"""
     )
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(receipts)")}
+    for col in ("submitted_by", "department", "emailed_to"):
+        if col not in cols:
+            c.execute(f"ALTER TABLE receipts ADD COLUMN {col} TEXT")
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS people (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT, department TEXT,
+            manager_email TEXT)"""
+    )
+    c.execute("CREATE TABLE IF NOT EXISTS org (key TEXT PRIMARY KEY, value TEXT)")
     return c
 
 
@@ -44,11 +54,14 @@ def save(res: ProcessResult, original_jpeg: bytes, pdf: bytes) -> None:
     slim = res.model_copy(update={"original_image_b64": "", "processed_image_b64": ""})
     with _conn() as c:
         c.execute(
-            "INSERT OR REPLACE INTO receipts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO receipts (id, created_at, vendor, date, total, currency, category, state, iterations, "
+            "self_correct, model, result_json, image_path, pdf_path, submitted_by, department) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 res.id, datetime.now().isoformat(timespec="seconds"), res.profile.vendor_name, res.profile.date,
                 res.profile.total, res.profile.currency, res.category, res.state.value, res.iterations,
                 int(res.self_correction_enabled), res.model, slim.model_dump_json(), str(img_path), str(pdf_path),
+                res.submitted_by, res.department,
             ),
         )
 
@@ -56,10 +69,47 @@ def save(res: ProcessResult, original_jpeg: bytes, pdf: bytes) -> None:
 def list_receipts(limit: int = 200) -> List[dict]:
     with _conn() as c:
         rows = c.execute(
-            "SELECT id, created_at, vendor, date, total, currency, category, state, iterations, self_correct, model "
-            "FROM receipts ORDER BY created_at DESC LIMIT ?", (limit,)
+            "SELECT id, created_at, vendor, date, total, currency, category, state, iterations, self_correct, model, "
+            "submitted_by, department, emailed_to FROM receipts ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def mark_emailed(rid: str, to: str) -> None:
+    with _conn() as c:
+        c.execute("UPDATE receipts SET emailed_to=? WHERE id=?", (to, rid))
+
+
+# ------------------------------------------------------------------ organisation
+def get_org() -> dict:
+    with _conn() as c:
+        kv = {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM org")}
+        people = [dict(r) for r in c.execute("SELECT * FROM people ORDER BY department, name")]
+    return {"org_name": kv.get("org_name", ""), "finance_email": kv.get("finance_email", ""), "people": people}
+
+
+def set_org(org_name: str, finance_email: str) -> None:
+    with _conn() as c:
+        c.execute("INSERT OR REPLACE INTO org VALUES ('org_name', ?)", (org_name,))
+        c.execute("INSERT OR REPLACE INTO org VALUES ('finance_email', ?)", (finance_email,))
+
+
+def add_person(name: str, email: str, department: str, manager_email: str) -> int:
+    with _conn() as c:
+        cur = c.execute("INSERT INTO people (name, email, department, manager_email) VALUES (?,?,?,?)",
+                        (name, email, department, manager_email))
+        return int(cur.lastrowid)
+
+
+def delete_person(pid: int) -> None:
+    with _conn() as c:
+        c.execute("DELETE FROM people WHERE id=?", (pid,))
+
+
+def get_person(name: str) -> Optional[dict]:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM people WHERE name=?", (name,)).fetchone()
+    return dict(r) if r else None
 
 
 def get(rid: str) -> Optional[dict]:
@@ -126,8 +176,14 @@ def set_policy(text: str) -> None:
 def stats() -> dict:
     with _conn() as c:
         row = c.execute(
-            "SELECT COUNT(*) n, COALESCE(SUM(total),0) sum_total, "
+            "SELECT COUNT(*) n, "
             "SUM(CASE WHEN state='VERIFIED' THEN 1 ELSE 0 END) verified, "
             "SUM(CASE WHEN iterations>0 THEN 1 ELSE 0 END) corrected FROM receipts"
         ).fetchone()
-    return dict(row)
+        by_cur = c.execute(
+            "SELECT COALESCE(currency,'INR') currency, COUNT(*) n, COALESCE(SUM(total),0) total "
+            "FROM receipts GROUP BY COALESCE(currency,'INR') ORDER BY total DESC"
+        ).fetchall()
+    d = dict(row)
+    d["by_currency"] = [dict(r) for r in by_cur]   # never add different currencies together
+    return d

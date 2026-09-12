@@ -128,7 +128,8 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
     ws = wb.active
     ws.title = "Receipts"
     _header(ws, 1, ["Processed at", "Receipt ID", "Vendor", "Date", "Invoice #", "Category", "Currency", "Subtotal", "Tax",
-                    "Charges", "Discount", "Total", "Status", "Policy", "Duplicate", "Correction passes", "Self-correction", "Model"])
+                    "Charges", "Discount", "Total", "Status", "Policy", "Duplicate", "Correction passes", "Self-correction", "Model",
+                    "Submitted by", "Department", "Emailed to"])
     items_rows = []
     for r in records:
         res = r["result"]
@@ -138,7 +139,8 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
         ws.append([r["created_at"].replace("T", " "), r["id"], p.get("vendor_name"), p.get("date"), p.get("invoice_number"),
                    res.get("category"), p.get("currency"), p.get("subtotal"), tax, charges, p.get("discount"), p.get("total"),
                    res.get("state"), (res.get("policy") or {}).get("status"), "yes" if (res.get("duplicate") or {}).get("is_duplicate") else "no",
-                   res.get("iterations"), "on" if res.get("self_correction_enabled") else "off (baseline)", res.get("model")])
+                   res.get("iterations"), "on" if res.get("self_correction_enabled") else "off (baseline)", res.get("model"),
+                   r.get("submitted_by") or res.get("submitted_by"), r.get("department") or res.get("department"), r.get("emailed_to")])
         st = ws.cell(row=ws.max_row, column=13)
         st.fill = OK_FILL if st.value == "VERIFIED" else WARN_FILL
         for i, li in enumerate(p.get("line_items", []), 1):
@@ -146,8 +148,13 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
                                li.get("quantity"), li.get("unit_price"), li.get("amount")])
     n = len(records)
     if n:
-        ws.cell(row=n + 2, column=11, value="TOTAL").font = Font(bold=True)
-        ws.cell(row=n + 2, column=12, value=f"=SUM(L2:L{n + 1})").font = Font(bold=True)
+        # totals per currency - never add INR to USD
+        r = n + 2
+        ws.cell(row=r, column=11, value="TOTAL by currency").font = Font(bold=True)
+        for cur in sorted({(rec["result"]["profile"].get("currency") or "INR") for rec in records}):
+            ws.cell(row=r, column=10, value=cur).font = Font(bold=True)
+            ws.cell(row=r, column=12, value=f'=SUMIF(G2:G{n + 1},"{cur}",L2:L{n + 1})').font = Font(bold=True)
+            r += 1
     for row in ws.iter_rows(min_row=2, min_col=8, max_col=12):
         for c in row:
             c.number_format = MONEY
@@ -166,18 +173,19 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
     ws2.auto_filter.ref = ws2.dimensions
     _autosize(ws2, max_w=50)
 
-    # category pivot
+    # category pivot, per currency
     ws3 = wb.create_sheet("By category")
-    _header(ws3, 1, ["Category", "Receipts", "Total"])
+    _header(ws3, 1, ["Category", "Currency", "Receipts", "Total"])
     agg: dict = {}
     for r in records:
         cat = r["result"].get("category") or "Other"
-        a = agg.setdefault(cat, [0, 0.0])
+        cur = r["result"]["profile"].get("currency") or "INR"
+        a = agg.setdefault((cat, cur), [0, 0.0])
         a[0] += 1
         a[1] += r["result"]["profile"].get("total") or 0
-    for cat, (cnt, tot) in sorted(agg.items(), key=lambda kv: -kv[1][1]):
-        ws3.append([cat, cnt, tot])
-        ws3.cell(row=ws3.max_row, column=3).number_format = MONEY
+    for (cat, cur), (cnt, tot) in sorted(agg.items(), key=lambda kv: (kv[0][1], -kv[1][1])):
+        ws3.append([cat, cur, cnt, tot])
+        ws3.cell(row=ws3.max_row, column=4).number_format = MONEY
     _autosize(ws3)
 
     buf = io.BytesIO()

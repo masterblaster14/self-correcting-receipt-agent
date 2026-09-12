@@ -131,6 +131,8 @@ def run_pipeline(
     max_iterations: int = 3,
     demo_fault: bool = False,
     policy_text: Optional[str] = None,
+    submitted_by: Optional[str] = None,
+    department: Optional[str] = None,
     progress: Optional[ProgressCb] = None,
 ) -> ProcessResult:
     t0 = time.time()
@@ -219,6 +221,7 @@ def run_pipeline(
         id=rid, state=state, profile=profile, verification=result, trace=trace,
         category=category, category_reason=reason, policy=policy, duplicate=duplicate,
         iterations=iterations, max_iterations=max_iterations, self_correction_enabled=self_correct,
+        submitted_by=submitted_by or None, department=department or None,
         model=("mock" if llm.MOCK else llm.MODEL),
         original_image_b64=b64(pre.original_jpeg), processed_image_b64=b64(pre.binary_jpeg),
         preprocess_info=pre.info, total_ms=int((time.time() - t0) * 1000),
