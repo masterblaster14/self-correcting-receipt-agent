@@ -51,7 +51,9 @@ def build_receipt_xlsx(res: ProcessResult) -> bytes:
         ("Invoice #", p.invoice_number), ("Date", p.date), ("Time", p.time), ("Currency", p.currency),
         ("Payment method", p.payment_method), ("Category", res.category), ("Category reason", res.category_reason),
         ("Policy status", res.policy.status), ("Policy reason", res.policy.reason),
-        ("Duplicate", "YES - " + res.duplicate.detail if res.duplicate.is_duplicate else "no"),
+        ("Duplicate", "YES - " + res.duplicate.detail if (res.duplicate.is_duplicate or res.duplicate.similar_image) else "no"),
+        ("Claimed amount", res.claim.claimed_amount), ("Claimed purpose", res.claim.claimed_purpose),
+        ("Claim check", res.claim.detail if res.claim.claimed_amount is not None else ""),
         ("Subtotal", p.subtotal), ("Tax total", p.tax_sum()), ("Other charges", p.charges_sum()),
         ("Discount", p.discount), ("Round off", p.round_off), ("TOTAL", p.total),
         ("Self-correction", "enabled" if res.self_correction_enabled else "disabled (baseline)"),
@@ -138,7 +140,8 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
         charges = sum((c.get("amount") or 0) for c in p.get("other_charges", []))
         ws.append([r["created_at"].replace("T", " "), r["id"], p.get("vendor_name"), p.get("date"), p.get("invoice_number"),
                    res.get("category"), p.get("currency"), p.get("subtotal"), tax, charges, p.get("discount"), p.get("total"),
-                   res.get("state"), (res.get("policy") or {}).get("status"), "yes" if (res.get("duplicate") or {}).get("is_duplicate") else "no",
+                   res.get("state"), (res.get("policy") or {}).get("status"),
+                   "yes" if ((res.get("duplicate") or {}).get("is_duplicate") or (res.get("duplicate") or {}).get("similar_image")) else "no",
                    res.get("iterations"), "on" if res.get("self_correction_enabled") else "off (baseline)", res.get("model"),
                    r.get("submitted_by") or res.get("submitted_by"), r.get("department") or res.get("department")])
         st = ws.cell(row=ws.max_row, column=13)

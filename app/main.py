@@ -76,7 +76,8 @@ def health():
 
 
 def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_fault: bool,
-             submitted_by: str = "", department: str = ""):
+             submitted_by: str = "", department: str = "", claimed_amount: Optional[float] = None,
+             claimed_purpose: str = ""):
     def progress(stage: str, msg: str):
         with JOBS_LOCK:
             JOBS[job_id]["events"].append({"stage": stage, "message": msg})
@@ -85,7 +86,8 @@ def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_f
     try:
         res = run_pipeline(data, self_correct=self_correct, max_iterations=max_iter,
                            demo_fault=demo_fault, policy_text=storage.get_policy(llm.DEFAULT_POLICY),
-                           submitted_by=submitted_by, department=department, progress=progress)
+                           submitted_by=submitted_by, department=department,
+                           claimed_amount=claimed_amount, claimed_purpose=claimed_purpose, progress=progress)
         progress("report", "Generating PDF expense report")
         import base64
 
@@ -109,10 +111,16 @@ async def process(
     max_iterations: int = Form(3),
     demo_fault: bool = Form(False),
     submitted_by: str = Form(""),
+    claimed_amount: str = Form(""),
+    claimed_purpose: str = Form(""),
 ):
     data = await file.read()
     person = storage.get_person(submitted_by) if submitted_by else None
     department = (person or {}).get("department") or ""
+    try:
+        claimed = float(claimed_amount.replace(",", "")) if claimed_amount.strip() else None
+    except ValueError:
+        raise HTTPException(400, "Claimed amount must be a number")
     if not data:
         raise HTTPException(400, "Empty upload")
     try:
@@ -123,7 +131,8 @@ async def process(
     with JOBS_LOCK:
         JOBS[job_id] = {"status": "running", "stage": "upload", "events": [{"stage": "upload", "message": f"Received {file.filename} ({len(data) // 1024} KB)"}]}
     threading.Thread(target=_run_job, args=(job_id, data, self_correct, max(0, min(max_iterations, 5)), demo_fault,
-                                            submitted_by.strip(), department), daemon=True).start()
+                                            submitted_by.strip(), department, claimed, claimed_purpose.strip()[:200]),
+                     daemon=True).start()
     return {"job_id": job_id}
 
 

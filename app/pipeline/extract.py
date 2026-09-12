@@ -91,7 +91,10 @@ DEFAULT_POLICY = """Company expense policy
 SYSTEM_POLICY = """You are the compliance reviewer of an expense-report agent. Given the company
 policy and one verified expense record, decide: compliant, needs_justification, or violation.
 Quote the rule numbers you relied on. Be strict but fair; when the record lacks the information
-to decide (e.g. number of diners), say needs_justification and explain what is missing."""
+to decide (e.g. number of diners), say needs_justification and explain what is missing.
+If the employee stated a claimed purpose or category, also check that it matches what the receipt
+actually contains (vendor type and line items). A mismatch such as "client lunch" claimed on an
+electronics-store receipt is a violation; say so explicitly and name both sides."""
 
 POLICY_SCHEMA = {
     "type": "object",
@@ -206,11 +209,15 @@ def categorize(profile: ExpenseProfile) -> tuple[str, str]:
 
 
 # ------------------------------------------------------------------ policy compliance
-def check_policy(profile: ExpenseProfile, category: str, policy_text: str) -> PolicyResult:
+def check_policy(profile: ExpenseProfile, category: str, policy_text: str, claimed_purpose: Optional[str] = None) -> PolicyResult:
     if MOCK:
-        return PolicyResult(status="compliant", reason="Meal of INR 441.50 is within the per-meal limit (mock).", rules_triggered=["1"])
+        if claimed_purpose and any(w in claimed_purpose.lower() for w in ("electronic", "laptop", "travel", "fuel")):
+            return PolicyResult(status="violation", reason=f"Claimed '{claimed_purpose}' but the receipt is a restaurant bill with food items (mock).", rules_triggered=["1"])
+        return PolicyResult(status="compliant", reason="Meal of INR 431.00 is within the per-meal limit (mock).", rules_triggered=["1"])
     record = profile.model_dump(include={"vendor_name", "date", "currency", "line_items", "total", "payment_method"})
     record["category"] = category
+    if claimed_purpose:
+        record["claimed_purpose_by_employee"] = claimed_purpose
     try:
         data = _call_json(SYSTEM_POLICY,
                           [{"type": "text", "text": f"POLICY:\n{policy_text}\n\nEXPENSE RECORD:\n{json.dumps(record, ensure_ascii=False)}\n\nToday's date: {__import__('datetime').date.today().isoformat()}"}],

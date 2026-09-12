@@ -118,6 +118,8 @@
     fd.append("max_iterations", $("optIters").value);
     fd.append("demo_fault", $("optFault").checked);
     fd.append("submitted_by", $("optPerson").value || "");
+    fd.append("claimed_amount", $("optClaimAmount").value || "");
+    fd.append("claimed_purpose", $("optClaimPurpose").value || "");
 
     let job;
     try {
@@ -184,7 +186,9 @@
     // alerts
     const alerts = [];
     if (!verified) alerts.push(`<div class="alert warn"><b>Flagged for human review.</b> ${esc(res.verification.checks.filter((c) => !c.passed && c.severity === "error").map((c) => c.message).join(" "))} The data is kept but never silently accepted.</div>`);
-    if (res.duplicate?.is_duplicate) alerts.push(`<div class="alert bad"><b>Possible duplicate submission.</b> ${esc(res.duplicate.detail)}</div>`);
+    if (res.duplicate?.is_duplicate || res.duplicate?.similar_image) alerts.push(`<div class="alert bad"><b>${res.duplicate.is_duplicate ? "Possible duplicate submission." : "Similar receipt image already in the ledger."}</b> ${esc(res.duplicate.detail)}</div>`);
+    if (res.claim?.status === "exceeds") alerts.push(`<div class="alert bad"><b>Claimed amount exceeds the receipt.</b> ${esc(res.claim.detail)}</div>`);
+    else if (res.claim?.status === "ok") alerts.push(`<div class="alert info"><b>Claim checked.</b> ${esc(res.claim.detail)}${res.claim.claimed_purpose ? ` Purpose stated: "${esc(res.claim.claimed_purpose)}".` : ""}</div>`);
     if (res.policy?.status === "violation") alerts.push(`<div class="alert bad"><b>Policy violation.</b> ${esc(res.policy.reason)}</div>`);
     else if (res.policy?.status === "needs_justification") alerts.push(`<div class="alert warn"><b>Needs justification.</b> ${esc(res.policy.reason)}</div>`);
     if (res.trace.some((t) => t.demo_fault)) alerts.push(`<div class="alert info"><b>Demo mode.</b> A fault was deliberately injected into the first extraction so the correction loop is visible.</div>`);
@@ -217,7 +221,8 @@
     $("rPolicy").innerHTML = `
       <span class="policy-status ${ps}">${ps.replace("_", " ").toUpperCase()}${res.policy.rules_triggered?.length ? ` · rule ${esc(res.policy.rules_triggered.join(", "))}` : ""}</span>
       <div class="policy-reason">${esc(res.policy.reason || "")}</div>
-      <div class="dup ${res.duplicate?.is_duplicate ? "bad" : ""}">${res.duplicate?.is_duplicate ? "⚠ " : "✓ "}${esc(res.duplicate?.detail || "")}</div>`;
+      <div class="dup ${(res.duplicate?.is_duplicate || res.duplicate?.similar_image) ? "bad" : ""}">${(res.duplicate?.is_duplicate || res.duplicate?.similar_image) ? "⚠ " : "✓ "}${esc(res.duplicate?.detail || "")}</div>
+      ${res.claim?.claimed_amount != null || res.claim?.claimed_purpose ? `<div class="dup ${res.claim.status === "exceeds" ? "bad" : ""}">${res.claim.status === "exceeds" ? "⚠ " : "✓ "}${esc(res.claim.detail)}${res.claim.claimed_purpose ? ` Stated purpose: "${esc(res.claim.claimed_purpose)}".` : ""}</div>` : ""}`;
 
     // profile
     $("rKv").innerHTML = [

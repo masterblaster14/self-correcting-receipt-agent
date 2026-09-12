@@ -33,7 +33,7 @@ def _conn() -> sqlite3.Connection:
             result_json TEXT, image_path TEXT, pdf_path TEXT)"""
     )
     cols = {r["name"] for r in c.execute("PRAGMA table_info(receipts)")}
-    for col in ("submitted_by", "department"):
+    for col in ("submitted_by", "department", "image_hash"):
         if col not in cols:
             c.execute(f"ALTER TABLE receipts ADD COLUMN {col} TEXT")
     c.execute(
@@ -54,15 +54,21 @@ def save(res: ProcessResult, original_jpeg: bytes, pdf: bytes) -> None:
     with _conn() as c:
         c.execute(
             "INSERT OR REPLACE INTO receipts (id, created_at, vendor, date, total, currency, category, state, iterations, "
-            "self_correct, model, result_json, image_path, pdf_path, submitted_by, department) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "self_correct, model, result_json, image_path, pdf_path, submitted_by, department, image_hash) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 res.id, datetime.now().isoformat(timespec="seconds"), res.profile.vendor_name, res.profile.date,
                 res.profile.total, res.profile.currency, res.category, res.state.value, res.iterations,
                 int(res.self_correction_enabled), res.model, slim.model_dump_json(), str(img_path), str(pdf_path),
-                res.submitted_by, res.department,
+                res.submitted_by, res.department, res.image_hash,
             ),
         )
+
+
+def all_image_hashes() -> List[dict]:
+    with _conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, created_at, vendor, total, currency, image_hash FROM receipts WHERE image_hash IS NOT NULL AND image_hash != ''")]
 
 
 def list_receipts(limit: int = 200) -> List[dict]:

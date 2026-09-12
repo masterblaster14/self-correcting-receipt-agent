@@ -147,9 +147,14 @@ def build_pdf(res: ProcessResult, original_jpeg: bytes | None = None) -> bytes:
     story.append(Paragraph(
         f"<font color='{pol_color}'><b>Policy: {pol.status.replace('_', ' ').upper()}</b></font>"
         + (f" (rules {', '.join(pol.rules_triggered)})" if pol.rules_triggered else "") + f" — {pol.reason}", body))
+    dup_flag = res.duplicate.is_duplicate or res.duplicate.similar_image
     story.append(Paragraph(
-        ("<font color='#D92D20'><b>Possible duplicate:</b></font> " if res.duplicate.is_duplicate else "<b>Duplicate check:</b> ")
+        ("<font color='#D92D20'><b>Possible duplicate:</b></font> " if dup_flag else "<b>Duplicate check:</b> ")
         + res.duplicate.detail, body))
+    if res.claim.claimed_amount is not None or res.claim.claimed_purpose:
+        story.append(Paragraph(
+            ("<font color='#D92D20'><b>Claim exceeds receipt:</b></font> " if res.claim.status == "exceeds" else "<b>Claim check:</b> ")
+            + res.claim.detail + (f" Stated purpose: {res.claim.claimed_purpose}." if res.claim.claimed_purpose else ""), body))
 
     # agent trace
     story.append(Paragraph("Self-correction trace", h2))

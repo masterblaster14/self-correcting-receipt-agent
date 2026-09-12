@@ -14,10 +14,10 @@ from typing import Callable, List, Optional
 
 from . import extract as llm
 from .models import (
-    DuplicateResult, ExpenseProfile, FieldChange, ProcessResult, ReceiptState, TraceEntry,
-    VerificationResult,
+    Check, ClaimCheck, DuplicateResult, ExpenseProfile, FieldChange, ProcessResult, ReceiptState, Severity,
+    TraceEntry, VerificationResult,
 )
-from .preprocess import b64, crop_region, ink_fraction, preprocess
+from .preprocess import b64, crop_region, dhash, hamming, ink_fraction, preprocess
 from .verify import verify
 
 ProgressCb = Callable[[str, str], None]  # (stage, message)
@@ -110,18 +110,59 @@ def _crops_for(profile: ExpenseProfile, zones: List[str], jpeg: bytes) -> List[t
     return crops[:3]
 
 
-def check_duplicate(profile: ExpenseProfile) -> DuplicateResult:
-    """Deterministic duplicate-submission check against the ledger."""
+SIMILAR_IMAGE_MAX_HAMMING = 16   # of 256 bits; copies of the same photo measure 0-8, template twins ~31
+
+
+def check_duplicate(profile: ExpenseProfile, image_hash: str = "") -> DuplicateResult:
+    """Deterministic duplicate-submission checks against the ledger:
+    (1) same vendor + date + total already reimbursed, (2) a near-identical receipt *image* already stored,
+    found by perceptual hash, which catches the same photo re-cropped, re-shot or brightness-adjusted."""
     try:
         from . import storage
 
         hit = storage.find_similar(profile.vendor_name, profile.date, profile.total)
+        hashes = storage.all_image_hashes() if image_hash else []
     except Exception:
-        hit = None
+        hit, hashes = None, []
+    res = DuplicateResult()
     if hit:
-        return DuplicateResult(is_duplicate=True, matched_id=hit["id"],
-                               detail=f"Same vendor, date and total as receipt {hit['id']} submitted {hit['created_at'][:16]}.")
-    return DuplicateResult(is_duplicate=False, detail="No matching receipt in the ledger.")
+        res.is_duplicate, res.matched_id = True, hit["id"]
+        res.detail = f"Same vendor, date and total as receipt {hit['id']} submitted {hit['created_at'][:16]}."
+    best = None
+    for h in hashes:
+        d = hamming(image_hash, h["image_hash"])
+        if d <= SIMILAR_IMAGE_MAX_HAMMING and (best is None or d < best[0]):
+            best = (d, h)
+    if best:
+        d, h = best
+        res.similar_image, res.similar_image_id, res.hamming = True, h["id"], d
+        res.detail = (res.detail + " " if res.detail else "") + (
+            f"Image is near-identical to receipt {h['id']} ({h['vendor'] or 'unknown vendor'}, "
+            f"{h['currency']} {h['total']}) submitted {h['created_at'][:16]} — {d}/256 bits differ.")
+    if not res.is_duplicate and not res.similar_image:
+        res.detail = "No matching receipt or similar image in the ledger."
+    return res
+
+
+def check_claim(profile: ExpenseProfile, claimed_amount: Optional[float], claimed_purpose: Optional[str]) -> ClaimCheck:
+    """Compare what the employee claims with what the receipt says (deterministic)."""
+    c = ClaimCheck(claimed_amount=claimed_amount, claimed_purpose=(claimed_purpose or "").strip() or None)
+    if claimed_amount is None:
+        c.detail = "No claimed amount provided."
+        return c
+    if profile.total is None:
+        c.status, c.detail = "ok", "Receipt total unreadable; claim could not be compared."
+        return c
+    c.difference = round(claimed_amount - profile.total, 2)
+    if c.difference > 0.01:
+        c.status = "exceeds"
+        c.detail = (f"Claimed {profile.currency} {claimed_amount:,.2f} exceeds the receipt total "
+                    f"{profile.currency} {profile.total:,.2f} by {c.difference:,.2f}.")
+    else:
+        c.status = "ok"
+        c.detail = (f"Claimed {profile.currency} {claimed_amount:,.2f} is within the receipt total "
+                    f"{profile.currency} {profile.total:,.2f}.")
+    return c
 
 
 def run_pipeline(
@@ -133,6 +174,8 @@ def run_pipeline(
     policy_text: Optional[str] = None,
     submitted_by: Optional[str] = None,
     department: Optional[str] = None,
+    claimed_amount: Optional[float] = None,
+    claimed_purpose: Optional[str] = None,
     progress: Optional[ProgressCb] = None,
 ) -> ProcessResult:
     t0 = time.time()
@@ -146,6 +189,7 @@ def run_pipeline(
     # ---------------------------------------------------------------- 1-2 ingest + preprocess
     say("preprocess", "Enhancing image (orient, denoise, deskew, contrast)")
     pre = preprocess(image_bytes)
+    image_hash = dhash(pre.enhanced_jpeg)
 
     # ---------------------------------------------------------------- 3-4 extraction
     say("extract", f"Building initial expense profile with {llm.MODEL}")
@@ -213,13 +257,22 @@ def run_pipeline(
     # ---------------------------------------------------------------- 8 categorisation + compliance
     say("categorize", "Classifying expense category")
     category, reason = llm.categorize(profile)
+    claim = check_claim(profile, claimed_amount, claimed_purpose)
+    if claimed_amount is not None:
+        # surfaced alongside the arithmetic checks; warning-level so it never triggers a re-read
+        result.checks.append(Check(
+            id="C10", name="Claimed amount within receipt total", passed=claim.status != "exceeds",
+            severity=Severity.warning, message=claim.detail, fields=["total"],
+            expected=profile.total, actual=claimed_amount,
+        ))
     say("policy", "Checking against expense policy")
-    policy = llm.check_policy(profile, category, policy_text or llm.DEFAULT_POLICY)
-    duplicate = check_duplicate(profile)
+    policy = llm.check_policy(profile, category, policy_text or llm.DEFAULT_POLICY, claimed_purpose=claim.claimed_purpose)
+    duplicate = check_duplicate(profile, image_hash)
 
     return ProcessResult(
         id=rid, state=state, profile=profile, verification=result, trace=trace,
-        category=category, category_reason=reason, policy=policy, duplicate=duplicate,
+        category=category, category_reason=reason, policy=policy, duplicate=duplicate, claim=claim,
+        image_hash=image_hash,
         iterations=iterations, max_iterations=max_iterations, self_correction_enabled=self_correct,
         submitted_by=submitted_by or None, department=department or None,
         model=("mock" if llm.MOCK else llm.MODEL),

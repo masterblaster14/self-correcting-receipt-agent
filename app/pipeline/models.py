@@ -262,6 +262,17 @@ class DuplicateResult(BaseModel):
     is_duplicate: bool = False
     matched_id: Optional[str] = None
     detail: str = ""
+    similar_image: bool = False            # perceptual-hash match with an earlier receipt photo
+    similar_image_id: Optional[str] = None
+    hamming: Optional[int] = None
+
+
+class ClaimCheck(BaseModel):
+    claimed_amount: Optional[float] = None
+    claimed_purpose: Optional[str] = None
+    status: str = "not_provided"           # ok | exceeds | not_provided
+    difference: Optional[float] = None     # claimed - receipt total (positive = over-claim)
+    detail: str = ""
 
 
 class ProcessResult(BaseModel):
@@ -274,6 +285,8 @@ class ProcessResult(BaseModel):
     category_reason: str = ""
     policy: PolicyResult = Field(default_factory=PolicyResult)
     duplicate: DuplicateResult = Field(default_factory=DuplicateResult)
+    claim: ClaimCheck = Field(default_factory=ClaimCheck)
+    image_hash: str = ""                   # 256-bit dHash of the enhanced image, hex
     iterations: int = 0
     max_iterations: int = 3
     self_correction_enabled: bool = True

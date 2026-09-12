@@ -135,6 +135,18 @@ on your accounts:
 
 Until that is done, deploy manually with `railway up --service web` from this folder.
 
+## Claim checks and duplicate detection
+
+Under the scan options, **Claim details** takes an optional claimed amount and a stated purpose.
+The claimed amount is compared with the extracted total (check C10; an over-claim is flagged with the
+difference) and the stated purpose is handed to the policy reviewer, which flags a mismatch between what
+was claimed and what the receipt actually contains, for example "client lunch" on an electronics-store bill.
+
+Duplicate detection runs two deterministic tests against the ledger: the same vendor, date and total
+already stored, and a near-identical receipt **image** found by a 256-bit perceptual hash of the enhanced
+image (catches the same photo re-uploaded, resized, re-compressed or brightness-adjusted; a fresh
+photograph of the same paper is caught by the first test, not this one).
+
 ## Organisation and people
 
 The **Organisation** tab holds the organisation name, the people directory (name, email, department) and the

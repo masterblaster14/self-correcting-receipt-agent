@@ -87,6 +87,11 @@
         <select id="optPerson"><option value="">— not set —</option></select>
       </label>
     </div>
+    <div class="claim-row">
+      <span class="claim-label">Claim details <small>optional — checked against the receipt</small></span>
+      <input id="optClaimAmount" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Claimed amount">
+      <input id="optClaimPurpose" type="text" maxlength="200" placeholder="Purpose, e.g. client lunch">
+    </div>
 
     <div class="samples" id="samples">
       <div class="samples-head">Or try a sample receipt</div>

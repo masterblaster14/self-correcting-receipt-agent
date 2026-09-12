@@ -140,6 +140,34 @@ def _find_receipt(img: np.ndarray):
     return max(0, x - m), max(0, y - m), min(W, x + w + m), min(H, y + h + m)
 
 
+HASH_SIDE = 16  # 16x16 -> 256-bit dHash. Measured: same file resized/brightened 5-8 bits apart,
+                # two different receipts on the same template ~31, unrelated receipts 100+.
+
+
+def dhash(jpeg: bytes) -> str:
+    """256-bit difference hash of an image (hex). Copies of the same photo (re-saved, resized,
+    brightness-adjusted) land within a few bits; different receipts do not."""
+    g = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_GRAYSCALE)
+    if g is None:
+        return ""
+    small = cv2.resize(g, (HASH_SIDE + 1, HASH_SIDE), interpolation=cv2.INTER_AREA).astype(np.int16)
+    bits = (small[:, 1:] > small[:, :-1]).flatten()
+    value = 0
+    for b in bits:
+        value = (value << 1) | int(b)
+    return f"{value:0{HASH_SIDE * HASH_SIDE // 4}x}"
+
+
+def hamming(a: str, b: str) -> int:
+    """Bit distance between two hex hashes; hashes of different sizes are treated as unrelated."""
+    if not a or not b or len(a) != len(b):
+        return 10**6
+    try:
+        return bin(int(a, 16) ^ int(b, 16)).count("1")
+    except (ValueError, TypeError):
+        return 10**6
+
+
 def ink_fraction(jpeg: bytes) -> float:
     """Share of dark (ink) pixels in an image - used to sanity-check model-proposed regions."""
     g = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_GRAYSCALE)
