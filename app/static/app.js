@@ -298,12 +298,13 @@
     filt.value = [...opts.keys()].includes(keep) ? keep : "";
     const items = all.items.filter((r) => !filt.value || (filt.value.startsWith("d:") ? r.department === filt.value.slice(2) : r.submitted_by === filt.value.slice(2)));
     const spend = (stats.by_currency || []).length
-      ? stats.by_currency.map((c) => `<span title="${c.n} receipt(s)">${money(c.total, c.currency)}</span>`).join('<span class="sep"> · </span>')
-      : "—";
+      ? `<ul class="cur-list">${stats.by_currency.map((c) => `<li><span class="cur-code">${esc(c.currency)}</span><span class="cur-amt">${money(c.total, c.currency)}</span><span class="cur-n">${c.n} receipt${c.n === 1 ? "" : "s"}</span></li>`).join("")}</ul>`
+      : "<span>—</span>";
     $("stats").innerHTML = [
-      ["Receipts", stats.n], ["Total spend by currency", spend], ["Verified", stats.n ? `${Math.round(100 * stats.verified / stats.n)}%` : "—"],
-      ["Self-corrected", stats.corrected || 0],
-    ].map(([k, v]) => `<div class="stat"><b>${k}</b><span>${v}</span></div>`).join("");
+      ["Receipts", `<span>${stats.n}</span>`], ["Total spend by currency", spend],
+      ["Verified", `<span>${stats.n ? `${Math.round(100 * stats.verified / stats.n)}%` : "—"}</span>`],
+      ["Self-corrected", `<span>${stats.corrected || 0}</span>`],
+    ].map(([k, v]) => `<div class="stat"><b>${k}</b>${v}</div>`).join("");
     const t = $("ledgerTable");
     if (!items.length) { t.innerHTML = `<tbody><tr><td class="empty">No receipts yet — scan one.</td></tr></tbody>`; return; }
     t.innerHTML = `<thead><tr><th>When</th><th>Vendor</th><th>Date</th><th class="num">Total</th><th>Category</th><th>Employee</th><th>Status</th><th class="num">Passes</th><th>Files</th><th></th></tr></thead><tbody>${

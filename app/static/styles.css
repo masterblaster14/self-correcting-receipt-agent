@@ -242,12 +242,17 @@ details.prompt pre { white-space: pre-wrap; font-family: var(--mono); font-size:
 .dup.bad { color: #991b1b; font-weight: 600; }
 
 /* ------------------------------------------------------------ ledger */
-.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
-.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; align-items: start; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; overflow: hidden; }
+.stat:nth-child(2) { grid-column: span 2; }
+@media (max-width: 420px) { .stat:nth-child(2) { grid-column: span 1; } }
 .stat b { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.stat span { font-family: var(--mono); font-weight: 600; font-size: 24px; letter-spacing: -.02em; }
-.stat span span { font-size: 20px; white-space: nowrap; }
-.stat .sep { color: var(--line-2); font-weight: 400; }
+.stat > span { font-family: var(--mono); font-weight: 600; font-size: 24px; letter-spacing: -.02em; }
+.cur-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 132px; overflow-y: auto; }
+.cur-list li { display: grid; grid-template-columns: 38px 1fr auto; gap: 8px; align-items: baseline; font-size: 13px; }
+.cur-code { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; }
+.cur-amt { font-family: var(--mono); font-weight: 600; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cur-n { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .ask { margin-bottom: 18px; }
 .ask-form { display: flex; gap: 8px; }
 .ask-form input { flex: 1; padding: 11px 14px; border-radius: 11px; border: 1px solid var(--line-2); background: #fff; min-width: 0; }
