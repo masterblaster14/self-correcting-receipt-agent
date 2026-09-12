@@ -52,8 +52,6 @@ a { color: inherit; text-decoration: none; }
   background: var(--accent-soft); color: var(--accent-2); border: 1px solid #c7d2fe; white-space: nowrap;
 }
 .model-chip.mock { background: var(--warn-soft); color: #92400e; border-color: #fde68a; }
-.user-chip { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-.user-chip img { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); }
 
 main { max-width: 1180px; margin: 0 auto; padding: 26px 22px 80px; }
 

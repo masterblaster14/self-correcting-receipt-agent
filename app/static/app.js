@@ -20,22 +20,6 @@
     window.scrollTo({ top: 0 });
   }
 
-  // ---------------------------------------------------------------- session
-  // any API call answered with 401 means the session ended -> back to the sign-in page
-  const _fetch = window.fetch.bind(window);
-  window.fetch = async (...a) => { const r = await _fetch(...a); if (r.status === 401 && !String(a[0]).startsWith("/auth/")) location.href = "/login"; return r; };
-  let me = null;
-  fetch("/auth/me").then((r) => r.json()).then((d) => {
-    if (!d.enabled || !d.user) return;
-    me = d.user;
-    $("userChip").hidden = false; $("userName").textContent = me.name || me.email;
-    if (me.picture) { $("userPic").src = me.picture; $("userPic").hidden = false; }
-    const sel = $("optPerson");
-    if (sel && ![...sel.options].some((o) => o.value === me.name)) sel.add(new Option(`${me.name} (you)`, me.name));
-    if (sel && !sel.value) sel.value = me.name;
-  }).catch(() => {});
-  $("btnLogout").addEventListener("click", async () => { await fetch("/auth/logout", { method: "POST" }); location.href = "/login"; });
-
   // ---------------------------------------------------------------- health + samples
   fetch("/api/health").then((r) => r.json()).then((h) => {
     const chip = $("modelChip");
@@ -391,7 +375,7 @@
     let saved = "";
     try { saved = localStorage.getItem("submitting_as") || ""; } catch {}
     sel.innerHTML = `<option value="">— not set —</option>` + people.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}${p.department ? ` · ${esc(p.department)}` : ""}</option>`).join("");
-    sel.value = people.some((p) => p.name === saved) ? saved : (me && people.some((p) => p.name === me.name) ? me.name : "");
+    sel.value = people.some((p) => p.name === saved) ? saved : "";
   }
   $("optPerson").addEventListener("change", () => { try { localStorage.setItem("submitting_as", $("optPerson").value); } catch {} });
   fetch("/api/org").then((r) => r.json()).then((o) => fillPeopleSelect(o.people)).catch(() => {});

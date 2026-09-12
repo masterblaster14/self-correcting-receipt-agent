@@ -25,8 +25,7 @@ Fallbacks:
 * Phone will not connect: use the sample tiles on the Scan page, they are your own photos.
 
 **Hosted option.** The app is also live at https://web-production-66c2c.up.railway.app — open that on the
-phone and skip the hotspot entirely. If sign-in is enabled there (SMTP or Google configured), use your
-`@vitstudent.ac.in` address; other domains are refused, which is itself worth showing.
+phone and skip the hotspot entirely.
 
 ## 2. Demo script (about 6 minutes)
 
