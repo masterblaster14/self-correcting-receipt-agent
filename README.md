@@ -14,9 +14,14 @@ Team: 24BIT0316 Om Gunjan Gupta · 24BIT0309 Abhishek Kumar Singh
 
 ```bash
 pip install -r requirements.txt
+pip install -r requirements-ocr.txt   # optional: local OCR model (EasyOCR), ~300 MB, laptop only
 copy .env.example .env      # put your ANTHROPIC_API_KEY in .env
 python run.py
 ```
+
+Models in use: **Claude Opus 5** (vision-language model, perception and structured extraction) and,
+when installed, **EasyOCR** (CRAFT text detector + CRNN recogniser, local CPU) for word-level OCR and
+layout. Both are cross-checked by a deterministic verifier; nothing is trusted on one model's word.
 
 Open `http://localhost:8000` on the laptop. The terminal also prints a `http://<lan-ip>:8000`
 URL — open that on a phone connected to the same Wi-Fi (or to the laptop's hotspot) and tap
@@ -88,7 +93,8 @@ correction pass runs.
 |---|---|
 | 1 Upload | `app/static/` (camera / upload / drag-drop / paste) → `POST /api/process` |
 | 2 Image preprocessing (OpenCV) | `app/pipeline/preprocess.py` — EXIF orient, resize, denoise, deskew, CLAHE, adaptive threshold |
-| 3–4 Extraction (multimodal LLM) | `app/pipeline/extract.py` — Claude vision, strict JSON schema in `models.py`, returns field regions |
+| 3 OCR & spatial layout | `app/pipeline/ocr.py` — local EasyOCR model (CRAFT detector + CRNN recogniser, CPU): word boxes, OCR-vs-VLM agreement check C11, keyword-anchored zones for re-examination crops. Optional: `pip install -r requirements-ocr.txt` |
+| 4 Extraction (multimodal LLM) | `app/pipeline/extract.py` — Claude vision, strict JSON schema in `models.py`, returns field regions |
 | 5 Verification engine (deterministic) | `app/pipeline/verify.py` — 7 checks, hypothesis generation, tax-inclusive detection |
 | 6 Self-correction agent | `app/pipeline/agent.py` — ranks failures, builds targeted prompt, crops suspect regions, re-examines, re-verifies, max N iterations |
 | 7 Verification-gating state machine | `ReceiptState` in `models.py`: INITIAL → AWAITING_VERIFICATION → FLAGGED_FOR_REEXAMINATION → VERIFIED / FLAGGED_FOR_REVIEW |

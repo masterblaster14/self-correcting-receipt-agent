@@ -54,6 +54,13 @@ Follow `run_pipeline()` in `app/pipeline/agent.py`. It is about 100 lines and ca
    contrast enhancement, and an adaptive-threshold "machine view" for display.
    Output: three JPEGs plus quality numbers (sharpness, brightness, angle).
 
+1b. **OCR and layout** (`ocr.py`, `run()`), when EasyOCR is installed
+   A local neural OCR model (CRAFT detector finds text regions, CRNN recogniser reads them) returns every
+   word with a normalised box and a confidence. Three uses: the "OCR boxes" overlay in the UI; the
+   agreement check C11, which counts how many of the vision model's amounts the OCR engine independently
+   read; and keyword-anchored zones ("total", "GST") that place the zoom crop when the vision model's own
+   box fails the ink test. Absent the package, this block is skipped and everything else is unchanged.
+
 2. **Extract** (`extract.py`, `extract()`)
    Sends the enhanced image to Claude with a system prompt describing Indian receipts (CGST/SGST rows,
    DD/MM/YYYY dates, tax-inclusive MRP) and a JSON schema (`EXPENSE_SCHEMA` in `models.py`). The API

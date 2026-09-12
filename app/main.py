@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .pipeline import extract as llm
-from .pipeline import storage
+from .pipeline import ocr, storage
 from .pipeline.agent import run_pipeline
 from .pipeline.preprocess import load_image
 from .pipeline.report import build_pdf
@@ -58,6 +58,7 @@ def _banner():
     print(f"  Laptop : http://localhost:8000")
     print(f"  Phone  : http://{lan_ip()}:8000   (same Wi-Fi / hotspot)")
     print(f"  Model  : {'MOCK (no API calls)' if llm.MOCK else llm.MODEL}  effort={llm.EFFORT}")
+    print(f"  OCR    : {ocr.ENGINE_NAME if ocr.available() else 'not installed (pip install easyocr to enable block 3)'}")
     if not llm.MOCK and not os.environ.get("ANTHROPIC_API_KEY"):
         print("  WARNING: ANTHROPIC_API_KEY is not set - extraction will fail. Set it or use MOCK_LLM=1.\n")
     else:
@@ -72,7 +73,8 @@ def index():
 @app.get("/api/health")
 def health():
     return {"ok": True, "mock": llm.MOCK, "model": llm.MODEL, "effort": llm.EFFORT,
-            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip()}
+            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip(),
+            "ocr_available": ocr.available(), "ocr_engine": ocr.ENGINE_NAME if ocr.available() else ""}
 
 
 def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_fault: bool,

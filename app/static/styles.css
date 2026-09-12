@@ -177,6 +177,15 @@ main { max-width: 1180px; margin: 0 auto; padding: 26px 22px 80px; }
 .region.focus { box-shadow: 0 0 0 4px rgba(239,68,68,.25); animation: focus 1.4s infinite; }
 @keyframes focus { 50% { box-shadow: 0 0 0 10px rgba(239,68,68,0);} }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.overlay:has(.ocr-box) { pointer-events: auto; }
+.ocr-box { position: absolute; border: 1.5px solid; border-radius: 2px; box-sizing: border-box; }
+.ocr-box.hi { border-color: #16a34a; background: rgba(22,163,74,.10); }
+.ocr-box.mid { border-color: #d97706; background: rgba(217,119,6,.12); }
+.ocr-box.lo { border-color: #dc2626; background: rgba(220,38,38,.14); }
+.ocr-box:hover { background: rgba(79,70,229,.25); border-color: var(--accent); }
+.ocr-legend { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; align-items: center; font-size: 11px; font-weight: 600; background: rgba(255,255,255,.92); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); }
+.ocr-legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.ocr-legend .hi { background: #16a34a; } .ocr-legend .mid { background: #d97706; } .ocr-legend .lo { background: #dc2626; }
 
 .checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .checks li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; padding: 9px 10px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--line); align-items: start; }

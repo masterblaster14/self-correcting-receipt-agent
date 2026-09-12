@@ -1,0 +1,5 @@
+# Optional: local OCR model for block 3 (EasyOCR = CRAFT detector + CRNN recogniser, CPU).
+# Pulls PyTorch (~200 MB) and downloads ~100 MB of weights on first run. Laptop only; not deployed
+# to Railway to keep the cloud image small.
+#   pip install -r requirements-ocr.txt
+easyocr>=1.7

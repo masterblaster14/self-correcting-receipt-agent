@@ -287,6 +287,10 @@ class ProcessResult(BaseModel):
     duplicate: DuplicateResult = Field(default_factory=DuplicateResult)
     claim: ClaimCheck = Field(default_factory=ClaimCheck)
     image_hash: str = ""                   # 256-bit dHash of the enhanced image, hex
+    ocr_engine: str = ""                   # local OCR model used for block 3, "" if not installed
+    ocr_words: List[dict] = Field(default_factory=list)   # word-level boxes from the OCR engine
+    ocr_agreement: dict = Field(default_factory=dict)     # VLM numbers independently seen by OCR
+    ocr_ms: int = 0
     iterations: int = 0
     max_iterations: int = 3
     self_correction_enabled: bool = True

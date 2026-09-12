@@ -110,6 +110,7 @@
         <ol class="stepper" id="stepper">
           <li data-stage="upload"><span class="dot"></span>Upload</li>
           <li data-stage="preprocess"><span class="dot"></span>Preprocess</li>
+          <li data-stage="ocr"><span class="dot"></span>OCR</li>
           <li data-stage="extract"><span class="dot"></span>Extract</li>
           <li data-stage="verify"><span class="dot"></span>Verify</li>
           <li data-stage="correct"><span class="dot"></span>Self-correct</li>
@@ -161,6 +162,7 @@
             <div class="seg" id="imgSeg">
               <button class="on" data-img="orig">Original</button>
               <button data-img="bin">Machine view</button>
+              <button data-img="ocr" id="segOcr" hidden>OCR boxes</button>
               <button data-img="regions">Attention regions</button>
             </div>
           </div>

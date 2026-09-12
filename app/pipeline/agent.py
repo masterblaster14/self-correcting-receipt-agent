@@ -13,6 +13,7 @@ import uuid
 from typing import Callable, List, Optional
 
 from . import extract as llm
+from . import ocr
 from .models import (
     Check, ClaimCheck, DuplicateResult, ExpenseProfile, FieldChange, ProcessResult, ReceiptState, Severity,
     TraceEntry, VerificationResult,
@@ -91,10 +92,12 @@ FALLBACK_BANDS = {  # where each zone usually sits on a receipt, if the model's 
 }
 
 
-def _crops_for(profile: ExpenseProfile, zones: List[str], jpeg: bytes) -> List[tuple[str, bytes]]:
+def _crops_for(profile: ExpenseProfile, zones: List[str], jpeg: bytes,
+               ocr_words: Optional[List[dict]] = None) -> List[tuple[str, bytes]]:
     """Crop the zones the failing checks point at. A model-proposed box is cross-checked with a
-    cheap ink-density test; an (almost) blank box means the model's coordinates were off, so we
-    fall back to the typical band for that zone instead of zooming into table-top."""
+    cheap ink-density test; an (almost) blank box means the model's coordinates were off. Then we
+    prefer a zone anchored on OCR keywords ("total", "gst", ...) and only as a last resort the
+    typical band for that zone."""
     crops = []
     by_zone = {r.field: r for r in profile.regions}
     for z in zones:
@@ -102,7 +105,8 @@ def _crops_for(profile: ExpenseProfile, zones: List[str], jpeg: bytes) -> List[t
         try:
             crop = crop_region(jpeg, r.x, r.y, r.w, r.h) if r else None
             if crop is None or ink_fraction(crop) < 0.004:
-                x, y, w, h = FALLBACK_BANDS[z]
+                kz = ocr.keyword_zone(ocr_words, z) if ocr_words else None
+                x, y, w, h = kz or FALLBACK_BANDS[z]
                 crop = crop_region(jpeg, x, y, w, h)
             crops.append((z, crop))
         except Exception:
@@ -191,6 +195,19 @@ def run_pipeline(
     pre = preprocess(image_bytes)
     image_hash = dhash(pre.enhanced_jpeg)
 
+    # ---------------------------------------------------------------- 3 OCR & spatial layout (local model)
+    ocr_words: List[dict] = []
+    ocr_ms = 0
+    if ocr.available():
+        say("ocr", f"Running local OCR model ({ocr.ENGINE_NAME.split(' (')[0]}) for word boxes")
+        ts = time.time()
+        try:
+            ocr_words = ocr.run(pre.enhanced_jpeg)
+        except Exception as e:  # OCR is a helper; never let it sink the pipeline
+            say("ocr", f"OCR unavailable this run ({type(e).__name__})")
+            ocr_words = []
+        ocr_ms = int((time.time() - ts) * 1000)
+
     # ---------------------------------------------------------------- 3-4 extraction
     say("extract", f"Building initial expense profile with {llm.MODEL}")
     ts = time.time()
@@ -209,6 +226,8 @@ def run_pipeline(
     # ---------------------------------------------------------------- 5 verification
     say("verify", "Running deterministic arithmetic & logic checks")
     result: VerificationResult = verify(profile)
+    if ocr_words:
+        result.checks.append(_ocr_check(profile, ocr_words))
     trace.append(_verify_entry(0, result))
 
     # ---------------------------------------------------------------- 6 self-correction loop
@@ -218,7 +237,7 @@ def run_pipeline(
             iterations += 1
             failed = sorted(result.failed_errors(), key=lambda c: c.id)  # C1 completeness, then C2, C3
             zones = llm.zones_for(failed)
-            crops = _crops_for(profile, zones, pre.enhanced_jpeg)
+            crops = _crops_for(profile, zones, pre.enhanced_jpeg, ocr_words)
             prompt = llm.build_reexamination_prompt(profile, failed, n_crops=len(crops))
             say("correct", f"Iteration {iterations}: zooming into {', '.join(zones) or 'receipt'} and re-examining")
             ts = time.time()
@@ -238,6 +257,8 @@ def run_pipeline(
             profile = revised
             say("verify", f"Re-verifying after iteration {iterations}")
             result = verify(profile, iteration=iterations)
+            if ocr_words:
+                result.checks.append(_ocr_check(profile, ocr_words))
             trace.append(_verify_entry(iterations, result))
             if not changes and not result.consistent:
                 trace[-1].detail += " Model returned identical values; stopping early."
@@ -273,11 +294,35 @@ def run_pipeline(
         id=rid, state=state, profile=profile, verification=result, trace=trace,
         category=category, category_reason=reason, policy=policy, duplicate=duplicate, claim=claim,
         image_hash=image_hash,
+        ocr_engine=ocr.ENGINE_NAME if ocr_words else "", ocr_words=ocr_words,
+        ocr_agreement=ocr.agreement(profile, ocr_words) if ocr_words else {}, ocr_ms=ocr_ms,
         iterations=iterations, max_iterations=max_iterations, self_correction_enabled=self_correct,
         submitted_by=submitted_by or None, department=department or None,
         model=("mock" if llm.MOCK else llm.MODEL),
         original_image_b64=b64(pre.original_jpeg), processed_image_b64=b64(pre.binary_jpeg),
         preprocess_info=pre.info, total_ms=int((time.time() - t0) * 1000),
+    )
+
+
+OCR_AGREEMENT_MIN = 0.5
+
+
+def _ocr_check(profile: ExpenseProfile, words: List[dict]) -> Check:
+    """C11 - second opinion: do the numbers the vision model committed to also appear in the
+    independent OCR reading? Warning-level: OCR on crumpled thermal paper is itself noisy, so it
+    informs the re-examination prompt and the reviewer rather than gating the record."""
+    a = ocr.agreement(profile, words)
+    if a["ratio"] is None:
+        return Check(id="C11", name="OCR second opinion agrees", passed=True, severity=Severity.warning,
+                     message="No numeric fields to cross-check.", fields=[])
+    ok = a["ratio"] >= OCR_AGREEMENT_MIN
+    return Check(
+        id="C11", name="OCR second opinion agrees", passed=ok, severity=Severity.warning,
+        message=f"{a['matched']}/{a['total']} extracted amounts also read by the OCR engine ({a['ratio']:.0%}).",
+        fields=["line_items", "total", "taxes"],
+        hypothesis=("The independent OCR pass did not find these values anywhere on the receipt: "
+                    + "; ".join(a["missing"]) + ". Re-read them digit by digit.") if not ok else "",
+        expected=float(a["total"]), actual=float(a["matched"]),
     )
 
 

@@ -4,7 +4,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SYM = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
   const money = (x, cur = "INR") => x == null ? "—" : `${SYM[cur] ?? cur + " "}${Number(x).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const STAGES = ["upload", "preprocess", "extract", "verify", "correct", "categorize", "policy", "report"];
+  const STAGES = ["upload", "preprocess", "ocr", "extract", "verify", "correct", "categorize", "policy", "report"];
   const STAGE_ALIAS = { store: "report", done: "report" };
 
   let current = null;        // last ProcessResult
@@ -23,7 +23,8 @@
   // ---------------------------------------------------------------- health + samples
   fetch("/api/health").then((r) => r.json()).then((h) => {
     const chip = $("modelChip");
-    chip.textContent = h.mock ? "MOCK MODE · no API calls" : `${h.model} · effort ${h.effort}`;
+    chip.textContent = (h.mock ? "MOCK MODE · no API calls" : `${h.model} · effort ${h.effort}`) + (h.ocr_available ? " + EasyOCR" : "");
+    chip.title = h.ocr_available ? `Perception: ${h.model}. OCR & layout: ${h.ocr_engine}` : "Vision model in use";
     chip.classList.toggle("mock", h.mock);
     if (!h.mock && !h.api_key_set) toast("ANTHROPIC_API_KEY is not set — extraction will fail", 6000);
   }).catch(() => {});
@@ -157,9 +158,10 @@
       const i = STAGES.indexOf(li.dataset.stage);
       li.classList.toggle("done", i < idx || (stage === "report" && doneStages.includes("done")));
       li.classList.toggle("active", i === idx && !doneStages.includes("done"));
-      // the correction stage is skipped when nothing fails - keep it neutral unless it actually ran
-      if (li.dataset.stage === "correct" && i < idx && !doneStages.includes("correct")) { li.classList.remove("done"); li.style.opacity = .55; li.title = "No correction needed"; }
-      else if (li.dataset.stage === "correct") { li.style.opacity = ""; li.title = ""; }
+      // optional stages are dimmed when they did not run (no correction needed / OCR model not installed)
+      const optional = { correct: "No correction needed", ocr: "OCR model not installed on this server" };
+      if (optional[li.dataset.stage] && i < idx && !doneStages.includes(li.dataset.stage)) { li.classList.remove("done"); li.style.opacity = .55; li.title = optional[li.dataset.stage]; }
+      else if (optional[li.dataset.stage]) { li.style.opacity = ""; li.title = ""; }
     });
   }
 
@@ -196,8 +198,12 @@
     $("rAlerts").innerHTML = alerts.join("");
 
     // image + regions
+    $("segOcr").hidden = !(res.ocr_words && res.ocr_words.length);
     setImg("orig");
+    const ag = res.ocr_agreement || {};
     $("rPreInfo").innerHTML = [
+      res.ocr_engine ? `<span class="chip accent" title="${esc(res.ocr_engine)}">OCR: EasyOCR · ${res.ocr_words.length} words · ${(res.ocr_ms / 1000).toFixed(1)}s</span>` : "",
+      ag.ratio != null ? `<span class="chip ${ag.ratio >= 0.5 ? "ok" : "warn"}" title="Extracted amounts independently read by the OCR engine">OCR agreement ${Math.round(ag.ratio * 100)}% (${ag.matched}/${ag.total})</span>` : "",
       `<span class="chip">${res.preprocess_info.width}×${res.preprocess_info.height}</span>`,
       `<span class="chip">deskew ${res.preprocess_info.deskew_deg ?? 0}°</span>`,
       `<span class="chip">sharpness ${res.preprocess_info.sharpness}</span>`,
@@ -275,6 +281,11 @@
     const res = current; if (!res) return;
     $("rImage").src = `data:image/jpeg;base64,${mode === "bin" ? res.processed_image_b64 : res.original_image_b64}`;
     const ov = $("rOverlay");
+    if (mode === "ocr") {
+      ov.innerHTML = (res.ocr_words || []).map((w) => `<div class="ocr-box ${w.conf >= 0.8 ? "hi" : w.conf >= 0.5 ? "mid" : "lo"}" title="${esc(w.text)} (${Math.round(w.conf * 100)}%)" style="left:${w.x * 100}%;top:${w.y * 100}%;width:${w.w * 100}%;height:${w.h * 100}%"></div>`).join("")
+        + `<div class="ocr-legend"><span class="hi"></span>≥80% <span class="mid"></span>50–80% <span class="lo"></span>&lt;50% confidence · hover a box for its text</div>`;
+      return;
+    }
     if (mode !== "regions") { ov.innerHTML = ""; return; }
     const focused = new Set(res.trace.flatMap((t) => t.focus_regions || []));
     ov.innerHTML = (res.profile.regions || []).map((r) => `
