@@ -13,10 +13,11 @@ import uuid
 from pathlib import Path
 from typing import Dict, Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from . import auth
 from .pipeline import extract as llm
 from .pipeline import mailer, storage
 from .pipeline.agent import run_pipeline
@@ -29,6 +30,25 @@ app = FastAPI(title="Self-Correcting Expense Agent")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 SAMPLES.mkdir(exist_ok=True)
 app.mount("/samples", StaticFiles(directory=SAMPLES), name="samples")
+app.include_router(auth.router)
+
+
+@app.middleware("http")
+async def _auth_gate(request: Request, call_next):
+    short = auth.gate(request)
+    return short if short is not None else await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    if not auth.auth_enabled() or auth.current_user(request):
+        return Response(status_code=307, headers={"Location": "/"})
+    return (STATIC / "login.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/users")
+def users(request: Request):
+    return {"items": storage.list_users(), "me": auth.current_user(request)}
 
 
 @app.get("/api/samples")
@@ -73,7 +93,8 @@ def index():
 def health():
     return {"ok": True, "mock": llm.MOCK, "model": llm.MODEL, "effort": llm.EFFORT,
             "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip(),
-            "email_configured": mailer.configured()}
+            "email_configured": mailer.configured(), "auth_enabled": auth.auth_enabled(),
+            "allowed_domains": auth.allowed_domains()}
 
 
 def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_fault: bool,
@@ -105,6 +126,7 @@ def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_f
 
 @app.post("/api/process")
 async def process(
+    request: Request,
     file: UploadFile = File(...),
     self_correct: bool = Form(True),
     max_iterations: int = Form(3),
@@ -112,6 +134,9 @@ async def process(
     submitted_by: str = Form(""),
 ):
     data = await file.read()
+    user = auth.current_user(request)
+    if not submitted_by and user:
+        submitted_by = user.get("name") or user["email"]   # signed-in employee is the default submitter
     person = storage.get_person(submitted_by) if submitted_by else None
     department = (person or {}).get("department") or ""
     if not data:

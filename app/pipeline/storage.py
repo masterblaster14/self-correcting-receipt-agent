@@ -42,7 +42,56 @@ def _conn() -> sqlite3.Connection:
             manager_email TEXT)"""
     )
     c.execute("CREATE TABLE IF NOT EXISTS org (key TEXT PRIMARY KEY, value TEXT)")
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY, name TEXT, picture TEXT, domain TEXT, created_at TEXT, last_login TEXT)"""
+    )
+    c.execute("CREATE TABLE IF NOT EXISTS login_codes (email TEXT PRIMARY KEY, code_hash TEXT, expires_at REAL, attempts INTEGER DEFAULT 0)")
     return c
+
+
+# ------------------------------------------------------------------ users / login codes
+def upsert_user(email: str, name: str, picture: str, domain: str) -> None:
+    now = datetime.now().isoformat(timespec="seconds")
+    with _conn() as c:
+        c.execute(
+            "INSERT INTO users (email, name, picture, domain, created_at, last_login) VALUES (?,?,?,?,?,?) "
+            "ON CONFLICT(email) DO UPDATE SET name=COALESCE(NULLIF(excluded.name,''), users.name), "
+            "picture=COALESCE(NULLIF(excluded.picture,''), users.picture), last_login=excluded.last_login",
+            (email, name, picture, domain, now, now),
+        )
+
+
+def get_user(email: str) -> Optional[dict]:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+    return dict(r) if r else None
+
+
+def list_users() -> List[dict]:
+    with _conn() as c:
+        return [dict(r) for r in c.execute("SELECT email, name, domain, created_at, last_login FROM users ORDER BY last_login DESC")]
+
+
+def save_login_code(email: str, code_hash: str, expires_at: float) -> None:
+    with _conn() as c:
+        c.execute("INSERT OR REPLACE INTO login_codes (email, code_hash, expires_at, attempts) VALUES (?,?,?,0)", (email, code_hash, expires_at))
+
+
+def get_login_code(email: str) -> Optional[dict]:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM login_codes WHERE email=?", (email,)).fetchone()
+    return dict(r) if r else None
+
+
+def bump_login_attempts(email: str) -> None:
+    with _conn() as c:
+        c.execute("UPDATE login_codes SET attempts=attempts+1 WHERE email=?", (email,))
+
+
+def delete_login_code(email: str) -> None:
+    with _conn() as c:
+        c.execute("DELETE FROM login_codes WHERE email=?", (email,))
 
 
 def save(res: ProcessResult, original_jpeg: bytes, pdf: bytes) -> None:

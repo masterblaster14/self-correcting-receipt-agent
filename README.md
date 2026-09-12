@@ -121,6 +121,59 @@ railway variables --set DATA_DIR=/data
 Optional email: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` the same way.
 On Railway the phone camera works through the normal HTTPS page, no hotspot needed.
 
+## Accounts: sign in with an organisation email only
+
+Sign-in switches on automatically as soon as **either** Google sign-in **or** SMTP is configured; with
+neither, the app stays open (handy for local demos). Only addresses whose domain is in `ALLOWED_DOMAINS`
+(default `vitstudent.ac.in`) can create an account or sign in. Two methods, both restricted the same way:
+
+* **Continue with Google** — needs a Google OAuth client:
+  1. Go to https://console.cloud.google.com/apis/credentials, create a project (any name).
+  2. *OAuth consent screen* → External → fill app name + your email → add scopes `email`, `profile`,
+     `openid` → add yourselves as test users (while the app is in "Testing", only test users can sign in;
+     click *Publish app* to allow anyone with an allowed domain).
+  3. *Credentials* → *Create credentials* → *OAuth client ID* → Web application. Authorised redirect URI:
+     `https://<your-host>/auth/google/callback` (and `http://localhost:8000/auth/google/callback` for local).
+  4. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `APP_URL=https://<your-host>`.
+* **Email one-time code** — needs only SMTP (see below). The user types their organisation address, receives a
+  6-digit code valid for 10 minutes, and is signed in. `AUTH_DEV_CODE=1` prints the code to the terminal
+  instead of emailing it, for local testing.
+
+The signed-in user becomes the default "Submitting as" person and is added to the organisation directory on
+first sign-in. Sessions are HMAC-signed cookies valid 14 days; sign out from the top bar.
+
+## Creating an SMTP account (for emailed reports and sign-in codes)
+
+Any SMTP provider works; the app just needs host, port, username, password.
+
+**Gmail (fastest):** the Google account must have 2-Step Verification on. Google Account → *Security* →
+*2-Step Verification* → scroll to *App passwords* → create one named "Receipt Agent" → copy the 16-character
+password. Then:
+
+```
+SMTP_HOST=smtp.gmail.com  SMTP_PORT=587  SMTP_USER=you@gmail.com  SMTP_PASS=<16-char app password>  SMTP_FROM=you@gmail.com
+```
+
+College Google Workspace accounts (`@vitstudent.ac.in`) often have app passwords disabled by the admin; if the
+option is missing, use a personal Gmail as the sender, or a transactional provider such as **Brevo**
+(free 300 emails/day: sign up, *SMTP & API* → generate an SMTP key; host `smtp-relay.brevo.com`, port 587,
+user = your Brevo login email, password = the SMTP key).
+
+## Connecting GitHub to Railway for automatic deploys
+
+Railway deploys on every push once its GitHub app can see the repository. This is a one-time authorisation
+on your accounts:
+
+1. https://railway.com/account/integrations → *GitHub* → *Configure* → install the Railway app on
+   `masterblaster14` and grant access to `self-correcting-receipt-agent` (all repos or just this one).
+2. In the Railway project → the `web` service → *Settings* → *Source* → *Connect Repo* → pick the repo,
+   branch `main`. Keep the existing variables and volume. Alternatively from the CLI:
+   `railway add --service app --repo masterblaster14/self-correcting-receipt-agent` and move the domain and
+   volume to the new service.
+3. Optional: enable *Wait for CI* and *Check suites* if you add tests later.
+
+Until that is done, deploy manually with `railway up --service web` from this folder.
+
 ## Organisation, people and email
 
 The **Organisation** tab holds the organisation name, a finance mailbox, the people directory
@@ -136,7 +189,12 @@ either, and **Email report** sends the PDF and Excel to their manager, to financ
 | `MODEL` | `claude-opus-5` | vision model; `claude-sonnet-5` is cheaper for bulk testing |
 | `EFFORT` | `medium` | `low` / `medium` / `high` reasoning effort per call |
 | `MOCK_LLM` | `0` | `1` = canned responses, no API calls |
-| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | — | enable **Email report** (Gmail: use an App Password) |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | — | enable **Email report** and email-code sign-in (Gmail: use an App Password) |
+| `ALLOWED_DOMAINS` | `vitstudent.ac.in` | comma-separated email domains allowed to create accounts |
+| `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` `APP_URL` | — | enable **Continue with Google** |
+| `ADMIN_EMAILS` | — | comma-separated; flagged `is_admin` in the session |
+| `AUTH_DEV_CODE` | `0` | `1` = print sign-in codes to the terminal (local testing) |
+| `SECRET_KEY` | auto | cookie signing key; auto-generated into `DATA_DIR/secret.key` |
 | `DATA_DIR` | `./data` | where SQLite, receipt images and PDFs are stored (Railway volume: `/data`) |
 
 ## Project layout

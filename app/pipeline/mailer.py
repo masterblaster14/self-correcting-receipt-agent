@@ -53,6 +53,29 @@ def build_body(res: ProcessResult, org_name: str) -> tuple[str, str]:
     return subject, "\n".join(lines)
 
 
+def _send(msg: EmailMessage) -> None:
+    host, port = os.environ["SMTP_HOST"], int(os.environ.get("SMTP_PORT", "587"))
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, timeout=30) as s:
+            s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=30) as s:
+            s.starttls()
+            s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
+            s.send_message(msg)
+
+
+def send_plain(to: str, subject: str, body: str) -> None:
+    if not configured():
+        raise RuntimeError("Email is not configured.")
+    msg = EmailMessage()
+    msg["Subject"], msg["To"] = subject, to
+    msg["From"] = os.environ.get("SMTP_FROM") or os.environ["SMTP_USER"]
+    msg.set_content(body)
+    _send(msg)
+
+
 def send_report(res: ProcessResult, to: List[str], pdf: bytes, xlsx: bytes, org_name: str = "") -> str:
     if not configured():
         raise RuntimeError("Email is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS (and optionally SMTP_PORT, SMTP_FROM) in .env.")
@@ -68,14 +91,5 @@ def send_report(res: ProcessResult, to: List[str], pdf: bytes, xlsx: bytes, org_
     msg.add_attachment(pdf, maintype="application", subtype="pdf", filename=f"expense-report-{res.id}.pdf")
     msg.add_attachment(xlsx, maintype="application", subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                        filename=f"expense-{res.id}.xlsx")
-    host, port = os.environ["SMTP_HOST"], int(os.environ.get("SMTP_PORT", "587"))
-    if port == 465:
-        with smtplib.SMTP_SSL(host, port, timeout=30) as s:
-            s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
-            s.send_message(msg)
-    else:
-        with smtplib.SMTP(host, port, timeout=30) as s:
-            s.starttls()
-            s.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
-            s.send_message(msg)
+    _send(msg)
     return ", ".join(to)
