@@ -87,8 +87,9 @@
   $("btnUpload").addEventListener("click", () => $("fileUpload").click());
   ["fileCamera", "fileUpload"].forEach((id) => $(id).addEventListener("change", (e) => {
     const f = e.target.files?.[0];
-    if (f) startJob(f);
-    e.target.value = "";
+    if (f) startJob(f); else toast("No photo received from the camera — try again", 4000);
+    // reset after a tick so iOS finishes handing the file over before the input is cleared
+    setTimeout(() => { try { e.target.value = ""; } catch {} }, 500);
   }));
   const dz = $("dropzone");
   ["dragenter", "dragover"].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); }));
@@ -106,33 +107,46 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // any uncaught error while a scan is in progress is shown in the panel instead of a silent hang
+  window.addEventListener("error", (e) => { if (!$("processingPanel").hidden) fail(`Page error: ${e.message}`); });
+  window.addEventListener("unhandledrejection", (e) => { if (!$("processingPanel").hidden) fail(`Page error: ${e.reason?.message || e.reason}`); });
+
   // ---------------------------------------------------------------- job lifecycle
+  const val = (id) => { const el = $(id); return el ? (el.type === "checkbox" ? el.checked : el.value) : ""; };
+
   async function startJob(file) {
+    if (!file || !file.size) return toast("The photo came back empty — please try again", 5000);
     $("uploadPanel").hidden = true; $("resultPanel").hidden = true; $("processingPanel").hidden = false;
     $("procError").hidden = true; $("btnCancel").hidden = true; $("procLog").innerHTML = "";
-    $("procPreview").src = URL.createObjectURL(file);
+    try { $("procPreview").src = URL.createObjectURL(file); } catch {}
     setStage("upload", []);
+    $("procLog").insertAdjacentHTML("beforeend", `<div><span class="st">[upload    ]</span> Sending ${esc(file.name || "photo")} (${Math.round(file.size / 1024)} KB)…</div>`);
 
     const fd = new FormData();
     fd.append("file", file, file.name || "receipt.jpg");
-    fd.append("self_correct", $("optSelfCorrect").checked);
-    fd.append("max_iterations", $("optIters").value);
-    fd.append("demo_fault", $("optFault").checked);
-    fd.append("submitted_by", $("optPerson").value || "");
-    fd.append("claimed_amount", $("optClaimAmount").value || "");
-    fd.append("claimed_purpose", $("optClaimPurpose").value || "");
+    fd.append("self_correct", val("optSelfCorrect") === "" ? true : val("optSelfCorrect"));
+    fd.append("max_iterations", val("optIters") || "3");
+    fd.append("demo_fault", val("optFault") === "" ? false : val("optFault"));
+    fd.append("submitted_by", val("optPerson") || "");
+    fd.append("claimed_amount", val("optClaimAmount") || "");
+    fd.append("claimed_purpose", val("optClaimPurpose") || "");
 
     let job;
     try {
-      const r = await fetch("/api/process", { method: "POST", body: fd });
-      if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 120000);   // slow mobile uplink: 2 min for the upload
+      const r = await fetch("/api/process", { method: "POST", body: fd, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
       job = (await r.json()).job_id;
-    } catch (e) { return fail(e.message); }
+    } catch (e) { return fail(e.name === "AbortError" ? "Upload timed out — check the connection and try again" : e.message); }
 
     let seen = 0;
+    let misses = 0;
     const poll = async () => {
       let j;
-      try { j = await (await fetch(`/api/jobs/${job}`)).json(); } catch { return setTimeout(poll, 800); }
+      try { j = await (await fetch(`/api/jobs/${job}`)).json(); misses = 0; }
+      catch { if (++misses > 40) return fail("Lost connection to the server while processing — check the network and retry"); return setTimeout(poll, 1500); }
       const log = $("procLog");
       for (; seen < j.events.length; seen++) {
         const ev = j.events[seen];
@@ -148,6 +162,7 @@
   }
 
   function fail(msg) {
+    $("processingPanel").hidden = false;
     $("procError").hidden = false; $("procError").textContent = msg; $("btnCancel").hidden = false;
   }
 

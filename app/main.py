@@ -65,9 +65,26 @@ def _banner():
         print()
 
 
+def _asset_version() -> str:
+    """Changes whenever any static file changes -> phones never mix an old page with a new script."""
+    return str(int(max(p.stat().st_mtime for p in STATIC.iterdir() if p.is_file())))
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return (STATIC / "index.html").read_text(encoding="utf-8")
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    v = _asset_version()
+    html = html.replace('href="/static/styles.css"', f'href="/static/styles.css?v={v}"')
+    html = html.replace('src="/static/app.js"', f'src="/static/app.js?v={v}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache, must-revalidate"})
+
+
+@app.middleware("http")
+async def _no_stale_assets(request, call_next):
+    resp = await call_next(request)
+    if request.url.path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return resp
 
 
 @app.get("/api/health")
