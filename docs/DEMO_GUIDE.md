@@ -98,6 +98,23 @@ and Excel reports, all from a phone camera in a browser."
 * **AWS?** Storage is behind a three-function interface (save, list, get). SQLite today; the DynamoDB and
   S3 version is a drop-in. Not deployed because it added no evidence for the AI claims.
 
+## 4b. The model report (run this in the terminal when asked "which model")
+
+```bash
+python tools/model_report.py
+```
+
+Prints, all measured live: the two OCR networks (CRAFT detector 20.8 M parameters, CRNN recogniser
+1.4 M, weight files and layer summary), the vision-language model's role and contract, OCR inference
+timing and confidence on every sample receipt, OCR-versus-VLM agreement on your stored real extractions,
+the eleven verification checks, and the SROIE and real-photo evaluation tables. It ends with the honest
+line: none of the networks were trained by us; the preprocessing, verifier, loop, cross-check and
+evaluation are ours. Takes about a minute; add `--quick` to skip the per-sample timing loop.
+
+Talking point from the numbers: OCR confidence collapses on crumpled receipts (mean 0.27 to 0.54) and its
+agreement with the vision model drops to 0 to 40 percent there, while the agent still verifies them.
+That is the case for a vision-language model plus a verification loop over OCR alone.
+
 ## 5. Repository tour (what to open when showing code)
 
 ```
