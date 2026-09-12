@@ -1,0 +1,109 @@
+﻿python :   [preprocess] Enhancing image (orient, denoise, deskew, contrast)
+At line:1 char:358
++ ... lyContinue; python run_cli.py samples/crumpled_real.jpg --json *> piz ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  [preprocess] ...skew, contrast):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  [extract   ] Building initial expense profile with claude-opus-5
+ANTHROPIC_API_KEY is set and takes precedence over the SDK's profile / federation auto-discovery; unset 
+ANTHROPIC_API_KEY to use the auto-discovered credential.
+  [verify    ] Running deterministic arithmetic & logic checks
+  [categorize] Classifying expense category
+  [policy    ] Checking against expense policy
+
+== VERIFIED  (0 correction iteration(s), 19.2s, model=claude-opus-5)
+   Tony's Pizzeria | 2018-04-27 | USD 13.77 | Meals & Dining
+   items=3 sum=12.87 subtotal=12.87 tax=0.9 discount=None round=None
+
+-- checks
+   PASS C1 Mandatory fields present: All mandatory fields present.
+   PASS C2 Line items sum to subtotal: Σ items 12.87 vs subtotal 12.87.
+   PASS C3 Subtotal + tax + charges - discount = total: Expected 13.77 vs total 13.77 (tax-exclusive pricing).
+   PASS C4 Quantity x unit price = line amount: All line items consistent.
+   PASS C5 Tax amounts plausible: Tax rates within expected range.
+   PASS C6 Date sane: Date valid.
+   PASS C8 Every line item has an amount: All line amounts read.
+   PASS C9 Model confident in all numeric fields: No low-confidence fields declared.
+   PASS C7 At least one line item: 3 line item(s).
+
+-- trace
+   [0] INITIAL_EXTRACTION         Initial extraction: 3 line items, 1 tax rows, total 13.77.
+   [0] AWAITING_VERIFICATION      Verification: All error-level checks pass. 0 warning(s).
+   [0] VERIFIED                   Verified — profile locked: All arithmetic constraints satisfied (tax-exclusive pricing).
+
+{
+  "vendor_name": "Tony's Pizzeria",
+  "vendor_address": null,
+  "invoice_number": "#40",
+  "date": "2018-04-27",
+  "time": "12:37",
+  "currency": "USD",
+  "line_items": [
+    {
+      "description": "Sm Cheese Pizza",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 9.98
+    },
+    {
+      "description": "Pepperoni",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 0.0
+    },
+    {
+      "description": "Sweetened Iced Tea Fountain",
+      "quantity": null,
+      "unit_price": null,
+      "amount": 2.89
+    }
+  ],
+  "subtotal": 12.87,
+  "taxes": [
+    {
+      "label": "Tax",
+      "rate_percent": null,
+      "amount": 0.9
+    }
+  ],
+  "other_charges": [],
+  "discount": null,
+  "round_off": null,
+  "total": 13.77,
+  "payment_method": "Cash",
+  "tax_inclusive_prices": false,
+  "uncertain_fields": [],
+  "regions": [
+    {
+      "field": "header",
+      "x": 0.04,
+      "y": 0.08,
+      "w": 0.72,
+      "h": 0.15
+    },
+    {
+      "field": "line_items",
+      "x": 0.06,
+      "y": 0.23,
+      "w": 0.72,
+      "h": 0.16
+    },
+    {
+      "field": "taxes",
+      "x": 0.06,
+      "y": 0.39,
+      "w": 0.72,
+      "h": 0.07
+    },
+    {
+      "field": "total",
+      "x": 0.06,
+      "y": 0.43,
+      "w": 0.72,
+      "h": 0.06
+    }
+  ],
+  "notes": "Receipt is crumpled; labels are offset from amounts (Subtotal/Tax/Total column shifted). Pepperoni topping printed without price, set to 0. Cash 20.00, Change 6.23, Balance Due 0.00.",
+  "revision_notes": ""
+}

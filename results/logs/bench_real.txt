@@ -1,0 +1,31 @@
+﻿python : ANTHROPIC_API_KEY is set and takes precedence over the SDK's profile / federation auto-discovery; unset 
+ANTHROPIC_API_KEY to use the auto-discovered credential.
+At line:1 char:358
++ ... lyContinue; python tools/benchmark.py (Get-ChildItem samples/*_real.j ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ANTHROPIC_API_K...red credential.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+allmaart_real              baseline VERIFIED               426.0 ?   agent VERIFIED               426.0 ? (0 iter)
+arasan_real                baseline VERIFIED               284.0 ?   agent VERIFIED               284.0 ? (0 iter)
+crumpled1_real             baseline FLAGGED_FOR_REVIEW      72.0 ?   agent VERIFIED                72.0 ? (2 iter)
+crumpled_real              baseline VERIFIED               13.77 ?   agent VERIFIED               13.77 ? (0 iter)
+foodcy_real                baseline FLAGGED_FOR_REVIEW     187.0 ?   agent VERIFIED               187.0 ? (1 iter)
+justbake_real              baseline VERIFIED               224.0 ?   agent VERIFIED               224.0 ? (0 iter)
+onefoodworld_real          baseline VERIFIED              1367.0 ?   agent VERIFIED              1367.0 ? (0 iter)
+taramaa_real               baseline VERIFIED              1670.0 ?   agent VERIFIED              1670.0 ? (0 iter)
+unclear_real               baseline VERIFIED                8.34 ?   agent VERIFIED                8.34 ? (0 iter)
+
+| Receipt | Truth | Baseline total | Baseline state | OK | Agent total | Agent state | Iters | OK |
+|---|---|---|---|---|---|---|---|---|
+| allmaart_real | None | 426.0 | VERIFIED | ? | 426.0 | VERIFIED | 0 | ? |
+| arasan_real | None | 284.0 | VERIFIED | ? | 284.0 | VERIFIED | 0 | ? |
+| crumpled1_real | None | 72.0 | FLAGGED_FOR_REVIEW | ? | 72.0 | VERIFIED | 2 | ? |
+| crumpled_real | None | 13.77 | VERIFIED | ? | 13.77 | VERIFIED | 0 | ? |
+| foodcy_real | None | 187.0 | FLAGGED_FOR_REVIEW | ? | 187.0 | VERIFIED | 1 | ? |
+| justbake_real | None | 224.0 | VERIFIED | ? | 224.0 | VERIFIED | 0 | ? |
+| onefoodworld_real | None | 1367.0 | VERIFIED | ? | 1367.0 | VERIFIED | 0 | ? |
+| taramaa_real | None | 1670.0 | VERIFIED | ? | 1670.0 | VERIFIED | 0 | ? |
+| unclear_real | None | 8.34 | VERIFIED | ? | 8.34 | VERIFIED | 0 | ? |
+
+Baseline correct: 0/9 · Agent correct: 0/9 · Agent verified: 9/9 · Baseline flagged: 2/9

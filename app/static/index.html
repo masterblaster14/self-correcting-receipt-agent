@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>Receipt Agent — Self-Correcting Expense Extraction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 3h9l3 3v15l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z"/><path d="M9 9h6M9 12h6M9 15h4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">Receipt Agent</div>
+      <div class="brand-sub">Self-correcting multimodal expense extraction</div>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-view="scan">Scan</button>
+    <button class="tab" data-view="ledger">Ledger</button>
+    <button class="tab" data-view="policy">Policy</button>
+  </nav>
+  <div class="model-chip" id="modelChip" title="Vision model in use">…</div>
+</header>
+
+<main>
+
+<!-- ============================================================ SCAN -->
+<section class="view" id="view-scan">
+
+  <!-- idle: upload -->
+  <div id="uploadPanel">
+    <div class="hero">
+      <h1>Photograph a receipt.<br><span>The agent reads it, checks the math, and fixes itself.</span></h1>
+      <p class="lede">Upload or shoot a receipt. A vision model extracts a structured expense profile, a deterministic
+        verifier checks every arithmetic constraint, and when something doesn't add up the agent zooms back into
+        the suspect region and re-examines it — until the numbers are proven consistent.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" id="fileCamera" accept="image/*" capture="environment" hidden>
+      <input type="file" id="fileUpload" accept="image/*,.heic,.heif" hidden>
+      <div class="dz-icon">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="3.5"/>
+        </svg>
+      </div>
+      <div class="dz-title">Drop a receipt image here</div>
+      <div class="dz-sub">JPEG, PNG, WebP or HEIC · phone photos welcome</div>
+      <div class="dz-actions">
+        <button class="btn primary" id="btnCamera">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          Take photo
+        </button>
+        <button class="btn" id="btnUpload">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>
+          Upload image
+        </button>
+      </div>
+    </div>
+
+    <div class="options">
+      <label class="switch">
+        <input type="checkbox" id="optSelfCorrect" checked>
+        <span class="slider"></span>
+        <span class="switch-label">Self-correction loop <small>off = single-pass baseline</small></span>
+      </label>
+      <label class="switch">
+        <input type="checkbox" id="optFault">
+        <span class="slider"></span>
+        <span class="switch-label">Demo: inject extraction fault <small>forces the loop to run on clean receipts</small></span>
+      </label>
+      <label class="select">
+        <span>Max iterations</span>
+        <select id="optIters"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option></select>
+      </label>
+    </div>
+
+    <div class="samples" id="samples">
+      <div class="samples-head">Or try a sample receipt</div>
+      <div class="sample-grid" id="sampleGrid"></div>
+    </div>
+  </div>
+
+  <!-- processing -->
+  <div id="processingPanel" hidden>
+    <div class="proc-card">
+      <div class="proc-left">
+        <img id="procPreview" alt="uploaded receipt">
+      </div>
+      <div class="proc-right">
+        <div class="proc-title">Agent working…</div>
+        <ol class="stepper" id="stepper">
+          <li data-stage="upload"><span class="dot"></span>Upload</li>
+          <li data-stage="preprocess"><span class="dot"></span>Preprocess</li>
+          <li data-stage="extract"><span class="dot"></span>Extract</li>
+          <li data-stage="verify"><span class="dot"></span>Verify</li>
+          <li data-stage="correct"><span class="dot"></span>Self-correct</li>
+          <li data-stage="categorize"><span class="dot"></span>Categorise</li>
+          <li data-stage="policy"><span class="dot"></span>Policy</li>
+          <li data-stage="report"><span class="dot"></span>Report</li>
+        </ol>
+        <div class="proc-log" id="procLog"></div>
+        <div class="proc-error" id="procError" hidden></div>
+        <button class="btn" id="btnCancel" hidden>Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- result -->
+  <div id="resultPanel" hidden>
+    <div class="result-head">
+      <div class="rh-left">
+        <div class="status-badge" id="rStatus">VERIFIED</div>
+        <div>
+          <div class="rh-vendor" id="rVendor">Vendor</div>
+          <div class="rh-meta" id="rMeta">date · id</div>
+        </div>
+      </div>
+      <div class="rh-right">
+        <div class="rh-total" id="rTotal">₹0.00</div>
+        <div class="rh-chips" id="rChips"></div>
+      </div>
+      <div class="rh-actions">
+        <a class="btn" id="btnPdf" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 10l6 6 6-6M4 20h16"/></svg>
+          PDF report
+        </a>
+        <a class="btn" id="btnXlsx" download>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+          Excel
+        </a>
+        <button class="btn primary" id="btnAgain">Scan another</button>
+      </div>
+    </div>
+
+    <div class="alerts" id="rAlerts"></div>
+
+    <div class="result-grid">
+      <div class="col-left">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Receipt</div>
+            <div class="seg" id="imgSeg">
+              <button class="on" data-img="orig">Original</button>
+              <button data-img="bin">Machine view</button>
+              <button data-img="regions">Attention regions</button>
+            </div>
+          </div>
+          <div class="img-wrap" id="imgWrap">
+            <img id="rImage" alt="receipt">
+            <div class="overlay" id="rOverlay"></div>
+          </div>
+          <div class="chips" id="rPreInfo"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Verification engine</div>
+          <div class="card-sub">Deterministic constraints, no model involved.</div>
+          <ul class="checks" id="rChecks"></ul>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Compliance</div>
+          <div id="rPolicy"></div>
+        </div>
+      </div>
+
+      <div class="col-right">
+        <div class="card">
+          <div class="card-title">Extracted expense profile</div>
+          <div class="kv" id="rKv"></div>
+          <div class="table-wrap">
+            <table class="items" id="rItems"></table>
+          </div>
+          <div class="totals" id="rTotals"></div>
+          <div class="notes" id="rNotes"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Self-correction trace</div>
+          <div class="card-sub" id="rTraceSub"></div>
+          <ol class="timeline" id="rTrace"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ LEDGER -->
+<section class="view" id="view-ledger" hidden>
+  <div class="stats" id="stats"></div>
+
+  <div class="card ask">
+    <div class="card-title">Ask your ledger</div>
+    <div class="card-sub">Natural-language questions answered by an agent that writes and runs read-only SQL.</div>
+    <form class="ask-form" id="askForm">
+      <input id="askInput" placeholder="e.g. How much did I spend on meals this month? Which receipts needed correction?" autocomplete="off">
+      <button class="btn primary" type="submit" id="askBtn">Ask</button>
+    </form>
+    <div class="ask-answer" id="askAnswer" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Processed receipts</div>
+      <div style="display:flex;gap:6px">
+        <a class="btn small" href="/api/export.xlsx" download>Export Excel</a>
+        <button class="btn small" id="btnRefresh">Refresh</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="ledger" id="ledgerTable"></table>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ POLICY -->
+<section class="view" id="view-policy" hidden>
+  <div class="card">
+    <div class="card-title">Expense policy</div>
+    <div class="card-sub">Plain English. The compliance reviewer reads this text alongside every verified receipt.</div>
+    <textarea id="policyText" rows="14" spellcheck="false"></textarea>
+    <div class="row-actions">
+      <button class="btn primary" id="btnSavePolicy">Save policy</button>
+      <button class="btn" id="btnResetPolicy">Reset to default</button>
+      <span class="save-note" id="policyNote"></span>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="lightbox" id="lightbox" hidden><img alt="zoomed crop"><div class="lb-cap" id="lbCap"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

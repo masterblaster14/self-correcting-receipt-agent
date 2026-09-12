@@ -1,0 +1,39 @@
+﻿python :   [preprocess] Enhancing image (orient, denoise, deskew, contrast)
+At line:1 char:421
++ ... ch_run.txt; python run_cli.py samples/foodcy_real.jpg *> foodcy_run.t ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  [preprocess] ...skew, contrast):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  [extract   ] Building initial expense profile with claude-opus-5
+ANTHROPIC_API_KEY is set and takes precedence over the SDK's profile / federation auto-discovery; unset 
+ANTHROPIC_API_KEY to use the auto-discovered credential.
+  [verify    ] Running deterministic arithmetic & logic checks
+  [correct   ] Iteration 1: zooming into header and re-examining
+  [verify    ] Re-verifying after iteration 1
+  [categorize] Classifying expense category
+  [policy    ] Checking against expense policy
+
+== VERIFIED  (1 correction iteration(s), 28.5s, model=claude-opus-5)
+   Foodcy (A Unit of Zenith Food Solutions Pvt Ltd) | 2026-08-11 | INR 187.0 | Meals & Dining
+   items=3 sum=187.0 subtotal=187.0 tax=0 discount=None round=None
+
+-- checks
+   PASS C1 Mandatory fields present: All mandatory fields present.
+   PASS C2 Line items sum to subtotal: Σ items 187.00 vs subtotal 187.00.
+   PASS C3 Subtotal + tax + charges - discount = total: Expected 187.00 vs total 187.00 (tax-exclusive pricing).
+   PASS C4 Quantity x unit price = line amount: All line items consistent.
+   PASS C5 Tax amounts plausible: Tax rates within expected range.
+   PASS C6 Date sane: Date valid.
+   PASS C8 Every line item has an amount: All line amounts read.
+   WARN C9 Model confident in all numeric fields: Low confidence: date.
+   PASS C7 At least one line item: 3 line item(s).
+
+-- trace
+   [0] INITIAL_EXTRACTION         Initial extraction: 3 line items, 0 tax rows, total 187.0.
+   [0] AWAITING_VERIFICATION      Verification: Failing: C6 Date 2026-11-08 is in the future (today is 2026-09-11).
+   [1] FLAGGED_FOR_REEXAMINATION  Targeted re-examination #1: 1 failing constraint(s) → hypothesis → zoomed into 1 region(s) → 1 field(s) changed.
+         date: 2026-11-08 -> 2026-08-11
+         agent: Changed date from 2026-11-08 to 2026-08-11. The digits '8/11/26' are confirmed in the zoomed crop; since 8 November 2026 would be in the future, the printed order must be MM/DD/YY, giving 11 August 2026. Also converted vendor_address from null to an empty string to satisfy the schema. All other values re-verified against the crop and left unchanged.
+   [1] AWAITING_VERIFICATION      Verification (after iteration 1): All error-level checks pass. 1 warning(s).
+   [1] VERIFIED                   Verified — profile locked: All arithmetic constraints satisfied (tax-exclusive pricing).

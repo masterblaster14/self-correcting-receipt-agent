@@ -1,0 +1,48 @@
+﻿python :   [preprocess] Enhancing image (orient, denoise, deskew, contrast)
+At line:1 char:358
++ ... lyContinue; python run_cli.py samples/crumpled1_real.jpg *> dutch_run ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (  [preprocess] ...skew, contrast):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  [extract   ] Building initial expense profile with claude-opus-5
+ANTHROPIC_API_KEY is set and takes precedence over the SDK's profile / federation auto-discovery; unset 
+ANTHROPIC_API_KEY to use the auto-discovered credential.
+  [verify    ] Running deterministic arithmetic & logic checks
+  [correct   ] Iteration 1: zooming into total, taxes, line_items and re-examining
+  [verify    ] Re-verifying after iteration 1
+  [categorize] Classifying expense category
+  [policy    ] Checking against expense policy
+
+== VERIFIED  (1 correction iteration(s), 38.6s, model=claude-opus-5)
+   All Day Brunch Rotterdam | 2025-08-02 | EUR 72.0 | Meals & Dining
+   items=8 sum=72.0 subtotal=None tax=11.88 discount=None round=None
+
+-- checks
+   PASS C1 Mandatory fields present: All mandatory fields present.
+   PASS C3 Subtotal + tax + charges - discount = total: Expected 72.00 vs total 72.00 (tax-inclusive pricing (receipt states prices include tax)).
+   PASS C4 Quantity x unit price = line amount: All line items consistent.
+   WARN C5 Tax amounts plausible: BTW 9% (omzet 66,06): 9.0% of 60.12 ≠ 5.94; BTW 9% (omzet 66,06): 9.0% of 60.12 ≠ 5.94
+   PASS C6 Date sane: Date valid.
+   PASS C8 Every line item has an amount: All line amounts read.
+   PASS C9 Model confident in all numeric fields: No low-confidence fields declared.
+   PASS C7 At least one line item: 8 line item(s).
+
+-- trace
+   [0] INITIAL_EXTRACTION         Initial extraction: 8 line items, 2 tax rows, total 72.0.
+   [0] AWAITING_VERIFICATION      Verification: Failing: C3 Expected 73.44 vs total 72.00.; C8 No amount for #8 'Fresh mint tea (Frai munt/verse muntthee)'.; C9 Low confidence: invoice_number, line_items[7].amount, line_items quantities.
+   [1] FLAGGED_FOR_REEXAMINATION  Targeted re-examination #1: 3 failing constraint(s) → hypothesis → zoomed into 3 region(s) → 11 field(s) changed.
+         line_items[0]: Truffle fries nr.2 | 1.0 x None = 7.5 -> Truffle fries nr.2 | 1.0 x 7.5 = 7.5
+         line_items[1]: Chaudfontaine Still 0.75 | None x None = 7.0 -> Chaudfontaine Still 0.75 | 1.0 x 7.0 = 7.0
+         line_items[2]: Croque Madam | None x None = 12.5 -> Croque Madam | 1.0 x 12.5 = 12.5
+         line_items[3]: Philly Cheese Steak | None x None = 16.5 -> Philly Cheese Steak | 1.0 x 16.5 = 16.5
+         line_items[4]: Breakfast Burrito | None x None = 14.0 -> Breakfast Burrito | 1.0 x 14.0 = 14.0
+         line_items[5]: Latte | None x None = 6.0 -> Ice Latte | 1.0 x 6.0 = 6.0
+         line_items[6]: Latte | None x None = 4.0 -> Latte | 1.0 x 4.0 = 4.0
+         line_items[7]: Fresh mint tea (Frai munt/verse muntthee) | None x None = None -> Fresh mint tea (Frai munt / verse muntthee) | 1.0 x 4.5 = 4.5
+         taxes[0]: BTW 0% 0.0% = 0.0 -> BTW 0% (omzet 0,00) 0.0% = 0.0
+         taxes[1]: BTW 9% 9.0% = 5.94 -> BTW 9% (omzet 66,06) 9.0% = 5.94
+         taxes[2]: None -> BTW 9% (omzet 66,06) 9.0% = 5.94
+         agent: Read the faint last item row as 4,50, which makes the item rows sum exactly to the printed total of 72,00 and resolves the missing-amount check. Marked prices as tax-inclusive (omzet 66,06 + BTW 5,94 = 72,00), so the tax rows are informational and must not be added on top. Set quantities to 1 each (single-item lines, leading '1 x' column). Confirmed invoice number as 25.18708 and cleared uncertain_fields.
+   [1] AWAITING_VERIFICATION      Verification (after iteration 1): All error-level checks pass. 1 warning(s).
+   [1] VERIFIED                   Verified — profile locked: All arithmetic constraints satisfied (tax-inclusive pricing (receipt states prices include tax)).

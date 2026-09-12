@@ -1,0 +1,48 @@
+﻿python : ANTHROPIC_API_KEY is set and takes precedence over the SDK's profile / federation auto-discovery; unset 
+ANTHROPIC_API_KEY to use the auto-discovered credential.
+At line:1 char:414
++ ... lyContinue; python tools/eval_sroie.py "$env:TEMP\sroie\data" --n 30  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ANTHROPIC_API_K...red credential.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[1/30] 116.jpg  base total OK  agent total OK (1 iter)
+[2/30] 398.jpg  base total OK  agent total OK (0 iter)
+[3/30] 017.jpg  base total OK  agent total OK (1 iter)
+[4/30] 141.jpg  base total OK  agent total OK (2 iter)
+[5/30] 620.jpg  base total OK  agent total OK (0 iter)
+[6/30] 295.jpg  base total OK  agent total OK (0 iter)
+[7/30] 254.jpg  base total OK  agent total OK (1 iter)
+[8/30] 464.jpg  base total OK  agent total OK (0 iter)
+[9/30] 601.jpg  base total OK  agent total OK (1 iter)
+[10/30] 135.jpg  base total OK  agent total OK (1 iter)
+[11/30] 424.jpg  base total OK  agent total OK (0 iter)
+[12/30] 387.jpg  base total OK  agent total OK (0 iter)
+[13/30] 146.jpg  base total X  agent total X (0 iter)
+[14/30] 242.jpg  base total OK  agent total OK (0 iter)
+[15/30] 210.jpg  base total OK  agent total OK (1 iter)
+[16/30] 568.jpg  base total OK  agent total OK (0 iter)
+[17/30] 196.jpg  base total OK  agent total OK (0 iter)
+[18/30] 575.jpg  base total OK  agent total OK (1 iter)
+[19/30] 404.jpg  base total OK  agent total OK (1 iter)
+[20/30] 585.jpg  base total OK  agent total OK (0 iter)
+[21/30] 495.jpg  base total OK  agent total OK (0 iter)
+[22/30] 476.jpg  base total OK  agent total OK (0 iter)
+[23/30] 129.jpg  base total OK  agent total OK (1 iter)
+[24/30] 508.jpg  base total OK  agent total OK (0 iter)
+[25/30] 250.jpg  base total OK  agent total OK (0 iter)
+[26/30] 587.jpg  base total OK  agent total OK (0 iter)
+[27/30] 034.jpg  base total OK  agent total OK (0 iter)
+[28/30] 519.jpg  base total OK  agent total OK (0 iter)
+[29/30] 396.jpg  base total OK  agent total OK (0 iter)
+[30/30] 028.jpg  base total OK  agent total OK (0 iter)
+
+SROIE key-field accuracy on 30 receipts (seed 0)
+
+| Field | Single-pass baseline | Self-correcting agent |
+|---|---|---|
+| total | 29/30 (97%) | 29/30 (97%) |
+| date | 28/30 (93%) | 28/30 (93%) |
+| company | 27/30 (90%) | 28/30 (93%) |
+
+Per-receipt results written to results/sroie_results.csv
