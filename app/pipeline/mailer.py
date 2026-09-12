@@ -15,8 +15,37 @@ from typing import List
 from .models import ProcessResult
 
 
-def configured() -> bool:
+def smtp_configured() -> bool:
     return bool(os.environ.get("SMTP_HOST") and os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASS"))
+
+
+def brevo_configured() -> bool:
+    """Brevo (ex-Sendinblue) HTTPS API - works where hosts block outbound SMTP ports (e.g. Railway trial).
+    BREVO_API_KEY=xkeysib-...  and  SMTP_FROM=<a sender address verified in Brevo>"""
+    return bool(os.environ.get("BREVO_API_KEY") and os.environ.get("SMTP_FROM"))
+
+
+def configured() -> bool:
+    return brevo_configured() or smtp_configured()
+
+
+def _brevo_send(to: List[str], subject: str, text: str, attachments: list[tuple[str, bytes]] = ()) -> None:
+    import base64
+
+    import requests
+
+    payload = {
+        "sender": {"email": os.environ["SMTP_FROM"], "name": os.environ.get("MAIL_FROM_NAME", "Receipt Agent")},
+        "to": [{"email": t} for t in to],
+        "subject": subject,
+        "textContent": text,
+    }
+    if attachments:
+        payload["attachment"] = [{"name": n, "content": base64.b64encode(b).decode()} for n, b in attachments]
+    r = requests.post("https://api.brevo.com/v3/smtp/email", json=payload, timeout=30,
+                      headers={"api-key": os.environ["BREVO_API_KEY"], "accept": "application/json"})
+    if r.status_code >= 300:
+        raise RuntimeError(f"Brevo rejected the email ({r.status_code}): {r.text[:200]}")
 
 
 def _money(x, cur):
@@ -69,6 +98,8 @@ def _send(msg: EmailMessage) -> None:
 def send_plain(to: str, subject: str, body: str) -> None:
     if not configured():
         raise RuntimeError("Email is not configured.")
+    if brevo_configured():
+        return _brevo_send([to], subject, body)
     msg = EmailMessage()
     msg["Subject"], msg["To"] = subject, to
     msg["From"] = os.environ.get("SMTP_FROM") or os.environ["SMTP_USER"]
@@ -78,11 +109,14 @@ def send_plain(to: str, subject: str, body: str) -> None:
 
 def send_report(res: ProcessResult, to: List[str], pdf: bytes, xlsx: bytes, org_name: str = "") -> str:
     if not configured():
-        raise RuntimeError("Email is not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS (and optionally SMTP_PORT, SMTP_FROM) in .env.")
+        raise RuntimeError("Email is not configured. Set BREVO_API_KEY + SMTP_FROM, or SMTP_HOST/SMTP_USER/SMTP_PASS, in .env.")
     to = [t.strip() for t in to if t and t.strip()]
     if not to:
         raise RuntimeError("No recipient: add a manager or finance email in the Organisation tab.")
     subject, body = build_body(res, org_name)
+    if brevo_configured():
+        _brevo_send(to, subject, body, [(f"expense-report-{res.id}.pdf", pdf), (f"expense-{res.id}.xlsx", xlsx)])
+        return ", ".join(to)
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = os.environ.get("SMTP_FROM") or os.environ["SMTP_USER"]
