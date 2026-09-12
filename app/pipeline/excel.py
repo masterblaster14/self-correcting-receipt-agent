@@ -129,7 +129,7 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
     ws.title = "Receipts"
     _header(ws, 1, ["Processed at", "Receipt ID", "Vendor", "Date", "Invoice #", "Category", "Currency", "Subtotal", "Tax",
                     "Charges", "Discount", "Total", "Status", "Policy", "Duplicate", "Correction passes", "Self-correction", "Model",
-                    "Submitted by", "Department", "Emailed to"])
+                    "Submitted by", "Department"])
     items_rows = []
     for r in records:
         res = r["result"]
@@ -140,7 +140,7 @@ def build_ledger_xlsx(records: List[dict]) -> bytes:
                    res.get("category"), p.get("currency"), p.get("subtotal"), tax, charges, p.get("discount"), p.get("total"),
                    res.get("state"), (res.get("policy") or {}).get("status"), "yes" if (res.get("duplicate") or {}).get("is_duplicate") else "no",
                    res.get("iterations"), "on" if res.get("self_correction_enabled") else "off (baseline)", res.get("model"),
-                   r.get("submitted_by") or res.get("submitted_by"), r.get("department") or res.get("department"), r.get("emailed_to")])
+                   r.get("submitted_by") or res.get("submitted_by"), r.get("department") or res.get("department")])
         st = ws.cell(row=ws.max_row, column=13)
         st.fill = OK_FILL if st.value == "VERIFIED" else WARN_FILL
         for i, li in enumerate(p.get("line_items", []), 1):

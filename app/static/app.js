@@ -262,21 +262,6 @@
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // email report
-  $("btnEmail").addEventListener("click", async () => {
-    if (!current) return;
-    const extra = prompt("Send to manager + finance (from the Organisation tab). Add extra recipients, comma-separated, or leave blank:", "");
-    if (extra === null) return;
-    $("btnEmail").disabled = true;
-    try {
-      const r = await fetch(`/api/receipts/${current.id}/email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to: extra }) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
-      toast(`Report emailed to ${d.to}`, 5000);
-    } catch (e) { toast("Email failed: " + e.message, 7000); }
-    $("btnEmail").disabled = false;
-  });
-
   // image segment control
   $("imgSeg").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setImg(b.dataset.img)));
   function setImg(mode) {
@@ -320,7 +305,7 @@
       items.map((r) => `<tr data-id="${r.id}">
         <td class="mono">${esc(r.created_at.replace("T", " ").slice(0, 16))}</td><td>${esc(r.vendor || "—")}</td><td class="mono">${esc(r.date || "—")}</td>
         <td class="num">${money(r.total, r.currency)}</td><td>${esc(r.category)}</td>
-        <td>${esc(r.submitted_by || "—")}${r.department ? `<br><small style="color:var(--muted)">${esc(r.department)}</small>` : ""}${r.emailed_to ? `<br><small style="color:var(--ok)" title="${esc(r.emailed_to)}">✉ emailed</small>` : ""}</td>
+        <td>${esc(r.submitted_by || "—")}${r.department ? `<br><small style="color:var(--muted)">${esc(r.department)}</small>` : ""}</td>
         <td><span class="chip ${r.state === "VERIFIED" ? "ok" : "warn"}">${r.state === "VERIFIED" ? "verified" : "review"}</span>${r.self_correct ? "" : ' <span class="chip bad">baseline</span>'}</td>
         <td class="num">${r.iterations}</td>
         <td style="white-space:nowrap"><a href="/api/receipts/${r.id}/pdf" target="_blank" rel="noopener" class="btn small" onclick="event.stopPropagation()">PDF</a> <a href="/api/receipts/${r.id}/xlsx" download class="btn small" onclick="event.stopPropagation()">XLSX</a></td>
@@ -355,17 +340,14 @@
     const d = await (await fetch("/api/policy")).json();
     $("policyText").value = d.policy; defaultPolicy = d.default; $("policyNote").textContent = "";
     await loadOrg();
-    const h = await (await fetch("/api/health")).json();
-    $("emailState").textContent = h.email_configured ? "Email sending configured" : "Email not configured — set SMTP_HOST / SMTP_USER / SMTP_PASS in .env";
-    $("emailState").className = "email-state " + (h.email_configured ? "ok" : "bad");
   }
   async function loadOrg() {
     const o = await (await fetch("/api/org")).json();
-    $("orgName").value = o.org_name || ""; $("orgFinance").value = o.finance_email || "";
+    $("orgName").value = o.org_name || "";
     const t = $("peopleTable");
     t.innerHTML = o.people.length
-      ? `<thead><tr><th>Name</th><th>Email</th><th>Department</th><th>Manager email</th><th></th></tr></thead><tbody>${
-          o.people.map((p) => `<tr><td>${esc(p.name)}</td><td>${esc(p.email || "—")}</td><td>${esc(p.department || "—")}</td><td>${esc(p.manager_email || "—")}</td><td><button class="del" data-pid="${p.id}" title="Remove">✕</button></td></tr>`).join("")}</tbody>`
+      ? `<thead><tr><th>Name</th><th>Email</th><th>Department</th><th></th></tr></thead><tbody>${
+          o.people.map((p) => `<tr><td>${esc(p.name)}</td><td>${esc(p.email || "—")}</td><td>${esc(p.department || "—")}</td><td><button class="del" data-pid="${p.id}" title="Remove">✕</button></td></tr>`).join("")}</tbody>`
       : `<tbody><tr><td class="empty">No people yet — add your team above.</td></tr></tbody>`;
     t.querySelectorAll("[data-pid]").forEach((b) => b.addEventListener("click", async () => { await fetch(`/api/people/${b.dataset.pid}`, { method: "DELETE" }); loadOrg(); }));
     fillPeopleSelect(o.people);
@@ -380,12 +362,12 @@
   $("optPerson").addEventListener("change", () => { try { localStorage.setItem("submitting_as", $("optPerson").value); } catch {} });
   fetch("/api/org").then((r) => r.json()).then((o) => fillPeopleSelect(o.people)).catch(() => {});
   $("btnSaveOrg").addEventListener("click", async () => {
-    const r = await fetch("/api/org", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ org_name: $("orgName").value, finance_email: $("orgFinance").value }) });
+    const r = await fetch("/api/org", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ org_name: $("orgName").value }) });
     $("orgNote").textContent = r.ok ? "Saved." : "Save failed";
   });
   $("peopleForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const body = { name: $("pName").value, email: $("pEmail").value, department: $("pDept").value, manager_email: $("pManager").value };
+    const body = { name: $("pName").value, email: $("pEmail").value, department: $("pDept").value };
     const r = await fetch("/api/people", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (r.ok) { $("peopleForm").reset(); loadOrg(); } else toast("Could not add person");
   });

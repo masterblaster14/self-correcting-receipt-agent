@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .pipeline import extract as llm
-from .pipeline import mailer, storage
+from .pipeline import storage
 from .pipeline.agent import run_pipeline
 from .pipeline.preprocess import load_image
 from .pipeline.report import build_pdf
@@ -72,8 +72,7 @@ def index():
 @app.get("/api/health")
 def health():
     return {"ok": True, "mock": llm.MOCK, "model": llm.MODEL, "effort": llm.EFFORT,
-            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip(),
-            "email_configured": mailer.configured()}
+            "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")), "lan_ip": lan_ip()}
 
 
 def _run_job(job_id: str, data: bytes, self_correct: bool, max_iter: int, demo_fault: bool,
@@ -128,7 +127,7 @@ async def process(
     return {"job_id": job_id}
 
 
-# ---------------------------------------------------------------- organisation + email
+# ---------------------------------------------------------------- organisation
 @app.get("/api/org")
 def get_org():
     return storage.get_org()
@@ -136,7 +135,7 @@ def get_org():
 
 @app.put("/api/org")
 async def put_org(body: dict):
-    storage.set_org((body.get("org_name") or "").strip(), (body.get("finance_email") or "").strip())
+    storage.set_org((body.get("org_name") or "").strip())
     return {"ok": True}
 
 
@@ -145,8 +144,7 @@ async def add_person(body: dict):
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(400, "Name required")
-    pid = storage.add_person(name, (body.get("email") or "").strip(), (body.get("department") or "").strip(),
-                             (body.get("manager_email") or "").strip())
+    pid = storage.add_person(name, (body.get("email") or "").strip(), (body.get("department") or "").strip())
     return {"ok": True, "id": pid}
 
 
@@ -154,36 +152,6 @@ async def add_person(body: dict):
 def delete_person(pid: int):
     storage.delete_person(pid)
     return {"ok": True}
-
-
-@app.post("/api/receipts/{rid}/email")
-async def email_receipt(rid: str, body: Optional[dict] = None):
-    from .pipeline.excel import build_receipt_xlsx
-    from .pipeline.models import ProcessResult
-
-    r = storage.get(rid)
-    if not r:
-        raise HTTPException(404, "Not found")
-    res = ProcessResult.model_validate(r["result"])
-    org = storage.get_org()
-    person = storage.get_person(res.submitted_by) if res.submitted_by else None
-    to = []
-    if body and body.get("to"):
-        to += [t for t in str(body["to"]).replace(";", ",").split(",")]
-    if person and person.get("manager_email"):
-        to.append(person["manager_email"])
-    if org.get("finance_email"):
-        to.append(org["finance_email"])
-    if person and person.get("email") and (body or {}).get("cc_submitter", True):
-        to.append(person["email"])
-    to = list(dict.fromkeys(t.strip() for t in to if t and t.strip()))
-    pdf = storage.pdf_bytes(rid) or b""
-    try:
-        sent_to = mailer.send_report(res, to, pdf, build_receipt_xlsx(res), org.get("org_name", ""))
-    except Exception as e:
-        raise HTTPException(400, str(e))
-    storage.mark_emailed(rid, sent_to)
-    return {"ok": True, "to": sent_to}
 
 
 @app.get("/api/jobs/{job_id}")

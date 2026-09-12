@@ -118,25 +118,7 @@ railway volume add --mount-path /data
 railway variables --set DATA_DIR=/data
 ```
 
-Optional email: set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` the same way.
 On Railway the phone camera works through the normal HTTPS page, no hotspot needed.
-
-## Creating an SMTP account (for emailed reports)
-
-Any SMTP provider works; the app just needs host, port, username, password.
-
-**Gmail (fastest):** the Google account must have 2-Step Verification on. Google Account → *Security* →
-*2-Step Verification* → scroll to *App passwords* → create one named "Receipt Agent" → copy the 16-character
-password. Then:
-
-```
-SMTP_HOST=smtp.gmail.com  SMTP_PORT=587  SMTP_USER=you@gmail.com  SMTP_PASS=<16-char app password>  SMTP_FROM=you@gmail.com
-```
-
-**On Railway's trial plan outbound SMTP ports are blocked**, so Gmail SMTP fails there with "Network is
-unreachable". Use Brevo's HTTPS API instead (free, 300 emails/day): sign up at brevo.com, verify your Gmail
-as a sender under *Senders & IP*, generate an API key under *SMTP & API*, then set `BREVO_API_KEY=xkeysib-...`
-and `SMTP_FROM=<the verified address>`. When `BREVO_API_KEY` is present it is used instead of SMTP.
 
 ## Connecting GitHub to Railway for automatic deploys
 
@@ -153,12 +135,11 @@ on your accounts:
 
 Until that is done, deploy manually with `railway up --service web` from this folder.
 
-## Organisation, people and email
+## Organisation and people
 
-The **Organisation** tab holds the organisation name, a finance mailbox, the people directory
-(name, email, department, manager email) and the expense policy. Choose a person under **Submitting as**
-on the Scan page; the receipt is stored against them and their department, the Ledger can be filtered by
-either, and **Email report** sends the PDF and Excel to their manager, to finance and to them.
+The **Organisation** tab holds the organisation name, the people directory (name, email, department) and the
+expense policy. Choose a person under **Submitting as** on the Scan page; the receipt is stored against them
+and their department, and the Ledger and the Excel export can be filtered by either.
 
 ## Configuration (`.env`)
 
@@ -168,8 +149,6 @@ either, and **Email report** sends the PDF and Excel to their manager, to financ
 | `MODEL` | `claude-opus-5` | vision model; `claude-sonnet-5` is cheaper for bulk testing |
 | `EFFORT` | `medium` | `low` / `medium` / `high` reasoning effort per call |
 | `MOCK_LLM` | `0` | `1` = canned responses, no API calls |
-| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` `SMTP_FROM` | — | enable **Email report** (Gmail: use an App Password; blocked on Railway trial, see below) |
-| `BREVO_API_KEY` + `SMTP_FROM` | — | enable **Email report** over HTTPS (works on Railway) |
 | `DATA_DIR` | `./data` | where SQLite, receipt images and PDFs are stored (Railway volume: `/data`) |
 
 ## Project layout

@@ -240,8 +240,8 @@ numbers. Amounts are in INR unless currency says otherwise. Today is {today}.
 Table receipts(id TEXT, created_at TEXT ISO, vendor TEXT, date TEXT 'YYYY-MM-DD', total REAL,
 currency TEXT, category TEXT, state TEXT 'VERIFIED'|'FLAGGED_FOR_REVIEW', iterations INTEGER,
 self_correct INTEGER, model TEXT, result_json TEXT, submitted_by TEXT employee name,
-department TEXT, emailed_to TEXT).
-Table people(id, name, email, department, manager_email) is the organisation directory.
+department TEXT).
+Table people(id, name, email, department) is the organisation directory.
 Column meanings that are easy to confuse:
 - iterations = number of self-correction passes the agent actually ran. 0 means the first
   extraction already passed verification ("needed no correction"). >0 means it was corrected.

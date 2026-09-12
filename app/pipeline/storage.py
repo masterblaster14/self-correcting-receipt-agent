@@ -33,13 +33,12 @@ def _conn() -> sqlite3.Connection:
             result_json TEXT, image_path TEXT, pdf_path TEXT)"""
     )
     cols = {r["name"] for r in c.execute("PRAGMA table_info(receipts)")}
-    for col in ("submitted_by", "department", "emailed_to"):
+    for col in ("submitted_by", "department"):
         if col not in cols:
             c.execute(f"ALTER TABLE receipts ADD COLUMN {col} TEXT")
     c.execute(
         """CREATE TABLE IF NOT EXISTS people (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT, department TEXT,
-            manager_email TEXT)"""
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT, department TEXT)"""
     )
     c.execute("CREATE TABLE IF NOT EXISTS org (key TEXT PRIMARY KEY, value TEXT)")
     return c
@@ -70,14 +69,9 @@ def list_receipts(limit: int = 200) -> List[dict]:
     with _conn() as c:
         rows = c.execute(
             "SELECT id, created_at, vendor, date, total, currency, category, state, iterations, self_correct, model, "
-            "submitted_by, department, emailed_to FROM receipts ORDER BY created_at DESC LIMIT ?", (limit,)
+            "submitted_by, department FROM receipts ORDER BY created_at DESC LIMIT ?", (limit,)
         ).fetchall()
     return [dict(r) for r in rows]
-
-
-def mark_emailed(rid: str, to: str) -> None:
-    with _conn() as c:
-        c.execute("UPDATE receipts SET emailed_to=? WHERE id=?", (to, rid))
 
 
 # ------------------------------------------------------------------ organisation
@@ -85,19 +79,17 @@ def get_org() -> dict:
     with _conn() as c:
         kv = {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM org")}
         people = [dict(r) for r in c.execute("SELECT * FROM people ORDER BY department, name")]
-    return {"org_name": kv.get("org_name", ""), "finance_email": kv.get("finance_email", ""), "people": people}
+    return {"org_name": kv.get("org_name", ""), "people": people}
 
 
-def set_org(org_name: str, finance_email: str) -> None:
+def set_org(org_name: str) -> None:
     with _conn() as c:
         c.execute("INSERT OR REPLACE INTO org VALUES ('org_name', ?)", (org_name,))
-        c.execute("INSERT OR REPLACE INTO org VALUES ('finance_email', ?)", (finance_email,))
 
 
-def add_person(name: str, email: str, department: str, manager_email: str) -> int:
+def add_person(name: str, email: str, department: str) -> int:
     with _conn() as c:
-        cur = c.execute("INSERT INTO people (name, email, department, manager_email) VALUES (?,?,?,?)",
-                        (name, email, department, manager_email))
+        cur = c.execute("INSERT INTO people (name, email, department) VALUES (?,?,?)", (name, email, department))
         return int(cur.lastrowid)
 
 
