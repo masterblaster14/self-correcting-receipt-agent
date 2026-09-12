@@ -8,6 +8,8 @@ category, a policy-compliance verdict, and a PDF expense report.
 
 Team: 24BIT0316 Om Gunjan Gupta · 24BIT0309 Abhishek Kumar Singh
 
+**Live demo:** https://web-production-66c2c.up.railway.app (open on a phone and tap *Take photo*)
+
 ## Quick start
 
 ```bash
